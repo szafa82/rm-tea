@@ -1,0 +1,21 @@
+{
+  "name": "rm-tea-club-manager-v5-clean",
+  "private": true,
+  "version": "5.0.0-clean",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "vite build",
+    "start": "node server.js",
+    "preview": "vite preview --host 0.0.0.0 --port 8080"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "lucide-react": "latest",
+    "express": "4.18.3"
+  },
+  "devDependencies": {}
+}
