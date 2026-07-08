@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings, Plus, Search, Bell, Download, Coffee, ShieldCheck, X, Save, Trash2, Pencil } from 'lucide-react';
+import { Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon, Plus, Search, Bell, Download, Coffee, ShieldCheck, X, Save, Trash2, Pencil } from 'lucide-react';
 import './style.css';
 
 const APP_VERSION = 'V5 CLEAN BUILD';
@@ -117,7 +117,7 @@ function App() {
   }, [members, transactions]);
 
   const nav = [
-    ['Dashboard', BarChart3], ['Members', Users], ['Transactions', ReceiptText], ['Reports', Wallet], ['Stock', Package], ['Poster Studio', Image], ['Settings', Settings]
+    ['Dashboard', BarChart3], ['Members', Users], ['Transactions', ReceiptText], ['Reports', Wallet], ['Stock', Package], ['Poster Studio', Image], ['Settings', SettingsIcon]
   ];
 
   return <div className="app">
