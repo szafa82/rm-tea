@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { loadTeaClub } from "./services/firestore";
 import { createRoot } from 'react-dom/client';
 import { Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon, Plus, Search, Bell, Download, Coffee, ShieldCheck, X, Save, Trash2, Pencil } from 'lucide-react';
 import './style.css';
@@ -42,6 +43,27 @@ function App() {
 
   useEffect(() => localStorage.setItem(STORAGE_MEMBERS, JSON.stringify(members)), [members]);
   useEffect(() => localStorage.setItem(STORAGE_TRANSACTIONS, JSON.stringify(transactions)), [transactions]);
+  useEffect(() => {
+
+    async function loadFirestore() {
+
+        try {
+
+            const firestore = await loadTeaClub();
+
+            console.log("Firestore:", firestore);
+
+        } catch (err) {
+
+            console.error(err);
+
+        }
+
+    }
+
+    loadFirestore();
+
+}, []);
 
   const notify = (text) => {
     setToast(text);
