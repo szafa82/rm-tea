@@ -1,0 +1,10 @@
+scripts:
+  buildCommand: npm run build
+  runCommand: npm run start
+outputFiles:
+  serverApp:
+    include:
+      - dist
+      - server.js
+      - package.json
+      - package-lock.json

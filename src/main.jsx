@@ -1,141 +1,84 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  Wallet,
-  ReceiptText,
-  BarChart3,
-  Package,
-  Image,
-  Settings as SettingsIcon,
-  Plus,
-  Search,
-  Bell,
-  Download,
-  Coffee,
-  ShieldCheck,
-  RefreshCw,
-  AlertTriangle,
-  X,
-  Save
+  Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon,
+  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle, X, Save, ChevronDown, ChevronRight
 } from 'lucide-react';
-
-import Members from './components/Members';
-import MemberCard from './components/MemberCard';
-
-import {
-  loadTeaClub,
-  saveMembersToTeaClub,
-  saveTransactionsToTeaClub,
-  saveMembersAndTransactionsToTeaClub
-} from './services/firestore.js';
-
+import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub } from './services/firestore.js';
 import './style.css';
 
-const APP_VERSION = 'V6.4 MEMBERS + TRANSACTIONS PREMIUM';
-const APP_YEAR = 2026;
-const START_MONTH_INDEX = 6; // July 2026 - months before this are inactive
+const APP_VERSION = 'V6.4 MEMBERS + TRANSACTIONS';
+const YEAR = 2026;
+const START_MONTH_INDEX = 6; // July 2026
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const monthNames = {
-  jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
-  apr: 3, april: 3, may: 4, jun: 5, june: 5, jul: 6, july: 6,
-  aug: 7, august: 7, sep: 8, sept: 8, september: 8,
-  oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11
+  jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2, apr: 3, april: 3,
+  may: 4, jun: 5, june: 5, jul: 6, july: 6, aug: 7, august: 7,
+  sep: 8, sept: 8, september: 8, oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11
 };
 
 function toMoney(value) {
   const number = Number(value || 0);
-  const sign = number < 0 ? '-' : '';
-  return `${sign}£${Math.abs(number).toFixed(2)}`;
+  return `£${number.toFixed(2)}`;
 }
 
 function monthKey(index) {
-  return `${APP_YEAR}-${String(index + 1).padStart(2, '0')}`;
+  return `${YEAR}-${String(index + 1).padStart(2, '0')}`;
 }
 
 function monthToIndex(value) {
   if (typeof value === 'number') return value >= 0 && value <= 11 ? value : null;
   const text = String(value || '').trim().toLowerCase();
   if (!text) return null;
-
   const iso = text.match(/(20\d{2})-(\d{2})/);
   if (iso) {
     const index = Number(iso[2]) - 1;
     return index >= 0 && index <= 11 ? index : null;
   }
-
   const first = text.split(/\s|\//)[0];
   return monthNames[first] ?? null;
 }
 
-function getCurrentMonthIndex() {
-  const now = new Date();
-  if (now.getFullYear() !== APP_YEAR) return now.getFullYear() > APP_YEAR ? 11 : START_MONTH_INDEX;
-  return now.getMonth();
-}
-
 function normalizePaidMonths(member) {
-  const source = member.paidMonths || member.monthsPaid || member.months || [];
+  const source = member.paidMonths || member.monthsPaid || [];
   if (!Array.isArray(source)) return [];
   return [...new Set(source.map(monthToIndex).filter(index => index !== null))].sort((a, b) => a - b);
 }
 
-function explicitMonthStatus(member, index) {
-  const key = monthKey(index);
-  const short = monthLabels[index].toLowerCase();
-  const source = member.monthStatuses || member.paymentStatuses || member.statuses || {};
-  return source[key] || source[short] || source[index] || null;
+function normalizeMonthStatuses(member) {
+  const statuses = { ...(member.monthStatuses || member.statusByMonth || {}) };
+  normalizePaidMonths(member).forEach(index => {
+    if (index >= START_MONTH_INDEX) statuses[monthKey(index)] = 'paid';
+  });
+  return statuses;
+}
+
+function automaticMonthStatus(index, paid) {
+  if (index < START_MONTH_INDEX) return 'inactive';
+  if (paid.includes(index)) return 'paid';
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
+  if (YEAR < currentYear || (YEAR === currentYear && index < currentMonth)) return 'overdue';
+  if (YEAR === currentYear && index === currentMonth) return 'due';
+  return 'future';
 }
 
 function getMonthStatus(member, index) {
   if (index < START_MONTH_INDEX) return 'inactive';
-
-  const manual = String(explicitMonthStatus(member.raw || member, index) || '').toLowerCase();
-  if (['paid', 'due', 'overdue', 'future'].includes(manual)) return manual;
-
-  if (member.paid?.includes(index) || normalizePaidMonths(member.raw || member).includes(index)) return 'paid';
-
-  const current = getCurrentMonthIndex();
-  if (index < current) return 'overdue';
-  if (index === current) return 'due';
-  return 'future';
+  const saved = member.monthStatuses?.[monthKey(index)];
+  if (['paid', 'due', 'overdue', 'future'].includes(saved)) return saved;
+  return automaticMonthStatus(index, member.paid || []);
 }
 
-function buildMonthStatuses(member) {
-  return monthLabels.map((label, index) => ({
-    index,
-    key: monthKey(index),
-    label,
-    status: getMonthStatus(member, index)
-  }));
-}
-
-function summarizeMonths(member) {
-  const statuses = buildMonthStatuses(member);
-  return {
-    paid: statuses.filter(m => m.status === 'paid').length,
-    due: statuses.filter(m => m.status === 'due').length,
-    overdue: statuses.filter(m => m.status === 'overdue').length,
-    future: statuses.filter(m => m.status === 'future').length,
-    inactive: statuses.filter(m => m.status === 'inactive').length
-  };
-}
-
-function nextManualStatus(current) {
-  if (current === 'inactive') return 'inactive';
-  if (current === 'paid') return 'due';
-  if (current === 'due') return 'overdue';
-  if (current === 'overdue') return 'paid';
-  if (current === 'future') return 'paid';
-  return 'paid';
-}
-
-function mergePaidMonths(rawMember, monthStatuses) {
-  const paidFromStatuses = Object.entries(monthStatuses || {})
-    .filter(([, status]) => status === 'paid')
-    .map(([key]) => monthToIndex(key))
-    .filter(index => index !== null);
-  const paid = [...new Set(paidFromStatuses)].sort((a, b) => a - b);
-  return paid.map(index => monthKey(index));
+function getMonthCounts(member) {
+  return monthLabels.reduce((acc, _month, index) => {
+    const status = getMonthStatus(member, index);
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
 }
 
 function normalizeMember(member, index) {
@@ -143,17 +86,18 @@ function normalizeMember(member, index) {
   const category = member.monthlyCategory || member.category || member.status || 'ACTIVE';
   const notes = member.notes || member.monthlyNotes || member.note || '';
   const paid = normalizePaidMonths(member);
+  const monthStatuses = normalizeMonthStatuses(member);
   const monthlyOutstanding = Number(member.monthlyOutstanding ?? member.monthlyDue ?? 0);
   const oldDebt = Number(member.oldDebt ?? member.weeklyDue ?? 0);
   const credit = Number(member.credit ?? member.paidCredited ?? 0);
-  const due = Math.max(0, monthlyOutstanding + oldDebt - credit);
   const resigned = String(category).toLowerCase().includes('resign') || String(member.status || '').toLowerCase().includes('left');
-  const normalised = {
+  const base = {
     raw: member,
     id: member.id ?? `${name}-${index}`,
     name,
     tag: resigned ? 'Left / resigned' : String(category || 'ACTIVE'),
     paid,
+    monthStatuses,
     note: notes || member.weeklyStatus || 'No notes',
     resigned,
     monthlyFee: Number(member.monthlyFee ?? 5),
@@ -161,12 +105,14 @@ function normalizeMember(member, index) {
     monthlyOutstanding,
     oldDebt,
     credit,
-    due,
     lastPaidWeek: member.lastPaidWeek || member.endWeek || '-',
     weeklyStatus: member.weeklyStatus || '-'
   };
-  normalised.monthSummary = summarizeMonths(normalised);
-  return normalised;
+  const counts = getMonthCounts(base);
+  const monthDebt = (counts.overdue || 0) * base.monthlyFee + (counts.due || 0) * base.monthlyFee;
+  base.due = Math.max(0, monthlyOutstanding + oldDebt + monthDebt - credit);
+  base.counts = counts;
+  return base;
 }
 
 function normalizeTransaction(tx, index) {
@@ -174,17 +120,17 @@ function normalizeTransaction(tx, index) {
   const expense = Number(tx.expense ?? tx.spent ?? 0);
   const amount = Number(tx.amount ?? (income - expense));
   const description = tx.description || tx.descript || tx.notes || tx.note || tx.category || 'Transaction';
-  const type = tx.type || tx.kind || (amount >= 0 ? 'Payment' : 'Expense');
+  const months = Array.isArray(tx.months) ? tx.months : (tx.month ? [tx.month] : []);
 
   return {
     id: tx.id || tx.ref || `TX-${String(index + 1).padStart(4, '0')}`,
     date: tx.date || tx.createdAt || tx.week || '-',
-    type,
-    member: tx.member || tx.memberName || tx.name || (amount >= 0 ? 'Unknown member' : 'Tea Club'),
+    type: tx.type || (amount >= 0 ? 'Payment' : 'Expense'),
+    member: tx.member || tx.name || (amount >= 0 ? 'Unknown member' : 'Tea Club'),
     category: tx.category || description,
     description,
-    months: Array.isArray(tx.months) ? tx.months : (tx.month ? [tx.month] : []),
-    amount
+    amount,
+    months
   };
 }
 
@@ -205,13 +151,16 @@ function App() {
       setStatus('Loading Firestore...');
       const firestore = await loadTeaClub();
       const data = firestore?.data || {};
-      const rawMembers = Array.isArray(data.members) ? [...data.members].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' })) : [];
+      const rawMembers = Array.isArray(data.members)
+        ? [...data.members].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' }))
+        : [];
       const members = rawMembers.map(normalizeMember);
       const rawTransactions = Array.isArray(data.transactions) ? [...data.transactions] : [];
       const transactions = rawTransactions.map(normalizeTransaction);
 
       setClubData({
-        members, transactions,
+        members,
+        transactions,
         months: Array.isArray(data.months) ? data.months : [],
         dashboardRows: Array.isArray(data.dashboardRows) ? data.dashboardRows : [],
         messages: Array.isArray(data.messages) ? data.messages : [],
@@ -237,48 +186,87 @@ function App() {
     window.__rmTeaToast = window.setTimeout(() => setToast(''), 3000);
   }
 
-  function findRawMemberIndex(target) {
-    return clubData.rawMembers.findIndex(member => {
-      const idA = String(member.id ?? '').trim();
-      const idB = String(target.id ?? '').trim();
-      const nameA = String(member.name || member.member || member.fullName || '').trim().toLowerCase();
-      const nameB = String(target.name || '').trim().toLowerCase();
-      return (idA && idB && idA === idB) || (nameA && nameB && nameA === nameB);
-    });
+  async function saveUpdatedMembers(rawMembers, message) {
+    const sorted = [...rawMembers].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' }));
+    await saveMembersToTeaClub(sorted);
+    notify(message);
+    await refreshData();
+  }
+
+  async function updateMemberMonthStatus(memberId, monthIndex, nextStatus) {
+    if (monthIndex < START_MONTH_INDEX) {
+      notify('Jan-Jun 2026 are inactive');
+      return;
+    }
+
+    try {
+      setStatus('Saving month status...');
+      const key = monthKey(monthIndex);
+      const updatedMembers = clubData.rawMembers.map(raw => {
+        const same = String(raw.id ?? raw.name) === String(memberId) || String(raw.name) === String(memberId);
+        if (!same) return raw;
+
+        const paidMonths = normalizePaidMonths(raw).filter(index => index !== monthIndex);
+        if (nextStatus === 'paid') paidMonths.push(monthIndex);
+
+        const monthStatuses = { ...(raw.monthStatuses || {}) };
+        monthStatuses[key] = nextStatus;
+
+        return {
+          ...raw,
+          monthStatuses,
+          paidMonths: [...new Set(paidMonths)].sort((a, b) => a - b).map(monthKey),
+          monthsPaid: [...new Set(paidMonths)].sort((a, b) => a - b).map(monthKey),
+          monthsPaidCount: nextStatus === 'paid' ? paidMonths.length : (raw.monthsPaidCount || 0),
+          updatedIn: 'v6.4'
+        };
+      });
+
+      await saveUpdatedMembers(updatedMembers, `${monthLabels[monthIndex]} set to ${nextStatus}`);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || String(err));
+      notify('Could not save month status. Check Firestore rules.');
+    }
   }
 
   async function addMemberToFirestore(payload) {
     const name = String(payload?.name || '').trim();
-    if (!name) { notify('Name is required'); return false; }
-
+    if (!name) return notify('Name is required'), false;
     const exists = clubData.rawMembers.some(member => String(member.name || '').trim().toLowerCase() === name.toLowerCase());
-    if (exists) { notify(`${name} already exists`); return false; }
+    if (exists) return notify(`${name} already exists`), false;
 
     try {
       setStatus(`Saving ${name} to Firestore...`);
+      const paidIndexes = Array.isArray(payload.monthsPaid) ? payload.monthsPaid.map(monthToIndex).filter(index => index !== null) : [];
       const monthStatuses = {};
-      monthLabels.forEach((label, index) => {
-        if (index < START_MONTH_INDEX) monthStatuses[monthKey(index)] = 'inactive';
-        else monthStatuses[monthKey(index)] = payload.monthsPaid?.includes(monthKey(index)) ? 'paid' : getMonthStatus({ raw: {}, paid: [] }, index);
-      });
+      paidIndexes.forEach(index => { if (index >= START_MONTH_INDEX) monthStatuses[monthKey(index)] = 'paid'; });
 
       const newMember = {
-        id: Date.now(), name,
-        category: payload.category || 'ACTIVE', monthlyCategory: payload.category || 'ACTIVE', status: 'active', activeAuto: 'Y',
-        monthlyFee: Number(payload.monthlyFee || 5), weeklyFee: Number(payload.weeklyFee || 1),
-        credit: 0, oldDebt: 0, monthlyOutstanding: 0,
+        id: Date.now(),
+        name,
+        category: payload.category || 'ACTIVE',
+        monthlyCategory: payload.category || 'ACTIVE',
+        status: 'active',
+        activeAuto: 'Y',
+        monthlyFee: Number(payload.monthlyFee || 5),
+        weeklyFee: Number(payload.weeklyFee || 1),
+        credit: 0,
+        oldDebt: 0,
+        monthlyOutstanding: 0,
+        monthsPaid: paidIndexes.map(monthKey),
+        monthsPaidCount: paidIndexes.length,
+        paidMonths: paidIndexes.map(monthKey),
         monthStatuses,
-        monthsPaid: mergePaidMonths({}, monthStatuses),
-        monthsPaidCount: mergePaidMonths({}, monthStatuses).length,
-        paidMonths: mergePaidMonths({}, monthStatuses),
-        notes: payload.notes || '', monthlyNotes: payload.notes || '', weeklyStatus: 'OK', lastPaidWeek: '-', createdIn: 'v6.4'
+        notes: payload.notes || '',
+        monthlyNotes: payload.notes || '',
+        weeklyStatus: 'OK',
+        lastPaidWeek: '-',
+        createdIn: 'v6.4'
       };
 
-      const updatedMembers = [...clubData.rawMembers, newMember].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' }));
-      await saveMembersToTeaClub(updatedMembers);
+      await saveUpdatedMembers([...clubData.rawMembers, newMember], `${name} added to Firestore`);
       setModal(null);
-      notify(`${name} added to Firestore`);
-      await refreshData();
       return true;
     } catch (err) {
       console.error(err);
@@ -288,48 +276,19 @@ function App() {
     }
   }
 
-  async function updateMemberMonthStatus(member, monthIndex) {
-    if (monthIndex < START_MONTH_INDEX) { notify('Jan-Jun 2026 are inactive'); return; }
-    const rawIndex = findRawMemberIndex(member);
-    if (rawIndex < 0) { notify('Member not found in Firestore data'); return; }
-
-    try {
-      const currentStatus = getMonthStatus(member, monthIndex);
-      const newStatus = nextManualStatus(currentStatus);
-      const updatedMembers = [...clubData.rawMembers];
-      const rawMember = { ...updatedMembers[rawIndex] };
-      const monthStatuses = { ...(rawMember.monthStatuses || rawMember.paymentStatuses || {}) };
-      monthStatuses[monthKey(monthIndex)] = newStatus;
-      rawMember.monthStatuses = monthStatuses;
-      rawMember.monthsPaid = mergePaidMonths(rawMember, monthStatuses);
-      rawMember.paidMonths = rawMember.monthsPaid;
-      rawMember.monthsPaidCount = rawMember.monthsPaid.length;
-      updatedMembers[rawIndex] = rawMember;
-
-      await saveMembersToTeaClub(updatedMembers);
-      notify(`${member.name}: ${monthLabels[monthIndex]} set to ${newStatus.toUpperCase()}`);
-      await refreshData();
-    } catch (err) {
-      console.error(err);
-      setError(err.message || String(err));
-      notify('Could not update month status');
-    }
-  }
-
   async function addTransactionToFirestore(payload) {
     const amountInput = Number(payload?.amount || 0);
-    if (!amountInput) { notify('Amount is required'); return false; }
+    if (!amountInput) return notify('Amount is required'), false;
 
     const kind = payload.kind || 'Payment';
-    if (kind !== 'Expense' && (!payload.member || payload.member === 'Tea Club')) {
-      notify('Choose the member who paid');
-      return false;
-    }
-
     const signedAmount = kind === 'Expense' ? -Math.abs(amountInput) : Math.abs(amountInput);
-    const memberName = kind === 'Expense' ? (payload.member || 'Tea Club') : payload.member;
+    const memberName = payload.member || (kind === 'Expense' ? 'Tea Club' : '');
+    if (kind !== 'Expense' && (!memberName || memberName === 'Tea Club')) return notify('Choose member for payment'), false;
+
+    const selectedMonths = Array.isArray(payload.months) ? payload.months : [];
+    if (kind !== 'Expense' && selectedMonths.length === 0) return notify('Choose at least one month'), false;
+
     const today = new Date().toISOString().slice(0, 10);
-    const months = Array.isArray(payload.months) ? payload.months : [];
 
     try {
       setStatus('Saving transaction to Firestore...');
@@ -338,11 +297,10 @@ function App() {
         date: payload.date || today,
         type: kind,
         member: memberName,
-        memberName,
         name: memberName,
-        category: payload.category || (kind === 'Expense' ? 'Supplies' : 'Membership'),
-        description: payload.description || payload.category || kind,
-        months,
+        months: selectedMonths,
+        category: payload.category || (kind === 'Expense' ? 'General expense' : 'Membership'),
+        description: payload.description || (selectedMonths.length ? `Membership: ${selectedMonths.join(', ')}` : payload.category || kind),
         amount: signedAmount,
         income: signedAmount > 0 ? signedAmount : 0,
         expense: signedAmount < 0 ? Math.abs(signedAmount) : 0,
@@ -350,28 +308,32 @@ function App() {
       };
 
       const updatedTransactions = [newTransaction, ...(clubData.raw?.transactions || [])];
-      let updatedMembers = clubData.rawMembers;
 
-      if (kind !== 'Expense' && months.length) {
-        const memberIndex = clubData.rawMembers.findIndex(m => String(m.name || '').trim().toLowerCase() === String(memberName).trim().toLowerCase());
-        if (memberIndex >= 0) {
-          updatedMembers = [...clubData.rawMembers];
-          const rawMember = { ...updatedMembers[memberIndex] };
-          const monthStatuses = { ...(rawMember.monthStatuses || rawMember.paymentStatuses || {}) };
-          months.forEach(value => {
-            const index = monthToIndex(value);
-            if (index !== null && index >= START_MONTH_INDEX) monthStatuses[monthKey(index)] = 'paid';
-          });
-          rawMember.monthStatuses = monthStatuses;
-          rawMember.monthsPaid = mergePaidMonths(rawMember, monthStatuses);
-          rawMember.paidMonths = rawMember.monthsPaid;
-          rawMember.monthsPaidCount = rawMember.monthsPaid.length;
-          updatedMembers[memberIndex] = rawMember;
-        }
+      if (kind === 'Expense') {
+        await saveTransactionsToTeaClub(updatedTransactions);
+      } else {
+        const selectedIndexes = selectedMonths.map(monthToIndex).filter(index => index !== null);
+        const updatedMembers = clubData.rawMembers.map(raw => {
+          if (String(raw.name || '').trim().toLowerCase() !== memberName.trim().toLowerCase()) return raw;
+
+          const existingPaid = normalizePaidMonths(raw);
+          const mergedPaid = [...new Set([...existingPaid, ...selectedIndexes])].sort((a, b) => a - b);
+          const monthStatuses = { ...(raw.monthStatuses || {}) };
+          selectedIndexes.forEach(index => { if (index >= START_MONTH_INDEX) monthStatuses[monthKey(index)] = 'paid'; });
+
+          return {
+            ...raw,
+            monthStatuses,
+            paidMonths: mergedPaid.map(monthKey),
+            monthsPaid: mergedPaid.map(monthKey),
+            monthsPaidCount: mergedPaid.length,
+            updatedIn: 'v6.4-payment'
+          };
+        });
+
+        await saveMembersToTeaClub(updatedMembers);
+        await saveTransactionsToTeaClub(updatedTransactions);
       }
-
-      if (updatedMembers !== clubData.rawMembers) await saveMembersAndTransactionsToTeaClub(updatedMembers, updatedTransactions);
-      else await saveTransactionsToTeaClub(updatedTransactions);
 
       setModal(null);
       notify(`${kind} saved to Firestore`);
@@ -387,21 +349,21 @@ function App() {
 
   const members = clubData.members;
   const transactions = clubData.transactions;
-  const filteredMembers = members.filter(member => [member.name, member.tag, member.note, member.weeklyStatus].join(' ').toLowerCase().includes(query.toLowerCase()));
+  const filteredMembers = members.filter(member =>
+    [member.name, member.tag, member.note, member.weeklyStatus].join(' ').toLowerCase().includes(query.toLowerCase())
+  );
 
   const stats = useMemo(() => {
     const income = transactions.filter(t => Number(t.amount) > 0).reduce((sum, tx) => sum + Number(tx.amount), 0);
     const spent = Math.abs(transactions.filter(t => Number(t.amount) < 0).reduce((sum, tx) => sum + Number(tx.amount), 0));
-    const dueMonths = members.reduce((sum, member) => sum + (member.monthSummary?.due || 0), 0);
-    const overdueMonths = members.reduce((sum, member) => sum + (member.monthSummary?.overdue || 0), 0);
-    const estimatedMonthDue = members.reduce((sum, member) => sum + ((member.monthSummary?.due || 0) + (member.monthSummary?.overdue || 0)) * Number(member.monthlyFee || 5), 0);
-    const legacyDue = members.reduce((sum, member) => sum + Number(member.due || 0), 0);
+    const due = members.reduce((sum, member) => sum + Number(member.due || 0), 0);
     const activeMembers = members.filter(member => !member.resigned).length;
-    return { income, spent, balance: income - spent, due: Math.max(legacyDue, estimatedMonthDue), dueMonths, overdueMonths, activeMembers, allMembers: members.length, transactions: transactions.length };
+    return { income, spent, balance: income - spent, due, activeMembers, allMembers: members.length, transactions: transactions.length };
   }, [members, transactions]);
 
   const nav = [
-    ['Dashboard', BarChart3], ['Members', Users], ['Transactions', ReceiptText], ['Reports', Wallet], ['Stock', Package], ['Poster Studio', Image], ['Settings', SettingsIcon]
+    ['Dashboard', BarChart3], ['Members', Users], ['Transactions', ReceiptText], ['Reports', Wallet],
+    ['Stock', Package], ['Poster Studio', Image], ['Settings', SettingsIcon]
   ];
 
   return <div className="app">
@@ -409,7 +371,7 @@ function App() {
       <div className="brand"><div className="logo">RM</div><div><b>Tea Club</b><span>Firestore Manager</span></div></div>
       <div className="versionBox">{APP_VERSION}</div>
       {nav.map(([name, Icon]) => <button key={name} onClick={() => setActive(name)} className={active === name ? 'active' : ''}><Icon size={18}/>{name}</button>)}
-      <div className="safe"><ShieldCheck size={17}/> Firestore live<br/>Members + Transactions</div>
+      <div className="safe"><ShieldCheck size={17}/> Firestore read/write<br/>Members + transactions</div>
     </aside>
 
     <main className="main">
@@ -425,7 +387,7 @@ function App() {
 
       {error && <section className="panel errorPanel"><AlertTriangle/><div><h2>Firestore error</h2><p>{error}</p></div></section>}
       {!error && active === 'Dashboard' && <Dashboard stats={stats} dashboardRows={clubData.dashboardRows} months={clubData.months} messages={clubData.messages} />}
-      {!error && active === 'Members' && <Members members={filteredMembers} total={members.length} onAdd={() => setModal('addMember')} onMonthClick={updateMemberMonthStatus} />}
+      {!error && active === 'Members' && <Members members={filteredMembers} total={members.length} onAdd={() => setModal('addMember')} onMonthChange={updateMemberMonthStatus} />}
       {!error && active === 'Transactions' && <Transactions transactions={transactions} onAddPayment={() => setModal({ type: 'addTransaction', kind: 'Payment' })} onAddExpense={() => setModal({ type: 'addTransaction', kind: 'Expense' })} />}
       {!error && active === 'Reports' && <Reports stats={stats} dashboardRows={clubData.dashboardRows} />}
       {!error && active === 'Stock' && <Stock />}
@@ -443,96 +405,127 @@ function Dashboard({ stats, dashboardRows, months, messages }) {
   return <section className="grid">
     <Stat title="Active members" value={stats.activeMembers} />
     <Stat title="All members" value={stats.allMembers} />
+    <Stat title="Balance" value={toMoney(stats.balance)} tone={stats.balance >= 0 ? 'green' : 'red'} />
+    <Stat title="Outstanding" value={toMoney(stats.due)} tone="orange" />
     <Stat title="Income" value={toMoney(stats.income)} tone="green" />
     <Stat title="Expenses" value={toMoney(stats.spent)} tone="red" />
-    <Stat title="Outstanding" value={toMoney(stats.due)} tone="orange" />
-    <Stat title="Balance" value={toMoney(stats.balance)} tone={stats.balance >= 0 ? 'green' : 'red'} />
-    <Stat title="Due months" value={stats.dueMonths} tone="orange" />
-    <Stat title="Overdue months" value={stats.overdueMonths} tone="red" />
     <div className="panel wide"><h2>Firestore dashboard snapshot</h2><table><thead><tr><th>Item</th><th>Value</th><th>Note</th></tr></thead><tbody>{dashboardRows.slice(0, 8).map((row, index) => <tr key={index}><td>{row.label || row.item || '-'}</td><td><b>{String(row.value ?? '')}</b></td><td>{row.note || ''}</td></tr>)}</tbody></table></div>
-    <div className="panel"><h2>System</h2><p className="alert good">✓ Connected to teaClub/main</p><p className="alert good">✓ Members: manual month statuses</p><p className="alert good">✓ Transactions: payments can update months</p><p><b>Months:</b> {months.join(', ') || '-'}</p><p><b>Messages:</b> {messages.length}</p></div>
+    <div className="panel"><h2>System</h2><p className="alert good">✓ Connected to teaClub/main</p><p className="alert good">✓ v6.4 month statuses</p><p className="alert">Payments can now mark months as paid.</p><p><b>Months:</b> {months.join(', ') || '-'}</p><p><b>Messages:</b> {messages.length}</p></div>
   </section>;
 }
 
-function Members({ members, total, onAdd, onMonthClick }) {
-  const [allCollapsed, setAllCollapsed] = useState(true);
+function Members({ members, total, onAdd, onMonthChange }) {
+  const [allOpen, setAllOpen] = useState(false);
   const activeCount = members.filter(member => !member.resigned).length;
-  const dueCount = members.filter(member => (member.monthSummary?.due || 0) > 0).length;
-  const overdueCount = members.filter(member => (member.monthSummary?.overdue || 0) > 0).length;
+  const overdueCount = members.filter(member => (member.counts?.overdue || 0) > 0).length;
 
   return <section>
     <div className="heroPanel membersHero">
       <div>
         <span className="eyebrow">Firestore live data</span>
         <h2>Members</h2>
-        <p>{members.length} displayed of {total} loaded · {activeCount} active · {dueCount} due · {overdueCount} overdue</p>
+        <p>{members.length} displayed of {total} loaded · {activeCount} active · {overdueCount} with overdue months</p>
       </div>
-      <div className="panelActions"><button className="secondary" onClick={() => setAllCollapsed(value => !value)}>{allCollapsed ? 'Expand all' : 'Collapse all'}</button><button className="primary" onClick={onAdd}><Plus size={18}/>Add member</button></div>
+      <div className="panelActions">
+        <button className="secondary" onClick={() => setAllOpen(v => !v)}>{allOpen ? 'Collapse all' : 'Expand all'}</button>
+        <button className="primary" onClick={onAdd}><Plus size={18}/>Add member</button>
+      </div>
     </div>
 
-    <div className="legend"><span className="inactive">Inactive</span><span className="paid">Paid</span><span className="dueChip">Due now</span><span className="overdueChip">Overdue</span><span className="future">Future</span></div>
-    <div className="members">{members.map(member => <MemberCard key={member.id} member={member} collapsedByDefault={allCollapsed} onMonthClick={onMonthClick} />)}</div>
+    <div className="members">{members.map(member => <MemberCard key={member.id} member={member} forceOpen={allOpen} onMonthChange={onMonthChange} />)}</div>
   </section>;
 }
 
-function statusClass(member) {
+function memberOverallStatus(member) {
   const text = `${member.tag} ${member.weeklyStatus} ${member.note}`.toLowerCase();
   if (member.resigned || text.includes('resign') || text.includes('left')) return 'left';
-  if ((member.monthSummary?.overdue || 0) > 0) return 'overdue';
-  if ((member.monthSummary?.due || 0) > 0 || Number(member.due || 0) > 0 || text.includes('to pay') || text.includes('due')) return 'due';
+  if ((member.counts?.overdue || 0) > 0) return 'due';
+  if ((member.counts?.due || 0) > 0) return 'warn';
   if (text.includes('new')) return 'new';
-  if (text.includes('orange')) return 'warn';
   return 'active';
 }
 
-function memberHeadline(status) {
-  if (status === 'overdue') return 'Overdue payment';
-  if (status === 'due') return 'Due this month';
-  if (status === 'left') return 'Left / resigned';
-  return 'OK';
+function nextManualStatus(current) {
+  if (current === 'paid') return 'due';
+  if (current === 'due') return 'overdue';
+  if (current === 'overdue') return 'future';
+  return 'paid';
 }
 
-function MemberCard({ member, collapsedByDefault, onMonthClick }) {
-  const [open, setOpen] = useState(!collapsedByDefault);
-  useEffect(() => setOpen(!collapsedByDefault), [collapsedByDefault]);
-  const status = statusClass(member);
-  const months = buildMonthStatuses(member);
-  const paidUntilIndex = months.filter(m => m.status === 'paid').map(m => m.index).sort((a, b) => b - a)[0];
-  const paidUntil = paidUntilIndex !== undefined ? monthLabels[paidUntilIndex] : '-';
-  const summary = member.monthSummary || summarizeMonths(member);
+function MemberCard({ member, forceOpen, onMonthChange }) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = forceOpen || localOpen;
+  const status = memberOverallStatus(member);
+  const paidUntil = member.paid.length ? monthLabels[Math.max(...member.paid)] : '-';
+  const counts = member.counts || {};
 
-  return <article className={`member member-${status} ${open ? 'member-open' : 'member-collapsed'}`}>
-    <button type="button" className="memberHeader" onClick={() => setOpen(value => !value)}>
-      <div className="avatar">{member.name?.[0] || '?'}</div>
-      <div className="memberHeaderText"><h3>{member.name}</h3><p>{memberHeadline(status)} · ✔{summary.paid} ⚠{summary.due} ✖{summary.overdue}</p></div>
-      <span className={`statusBadge ${status}`}>{member.tag}</span>
-      <span className="chevron">{open ? '▼' : '▶'}</span>
+  return <article className={`member member-${status} ${open ? 'expanded' : 'collapsed'}`}>
+    <button type="button" className="memberSummary" onClick={() => setLocalOpen(v => !v)}>
+      <div className="memberIdentity">
+        <div className="avatar">{member.name?.[0] || '?'}</div>
+        <div>
+          <h3>{member.name}</h3>
+          <p>✔ {counts.paid || 0} paid · ⚠ {counts.due || 0} due · ✖ {counts.overdue || 0} overdue</p>
+        </div>
+      </div>
+      <div className="memberRight">
+        <span className={`statusBadge ${status}`}>{member.resigned ? 'Left' : status === 'due' ? 'Overdue' : status === 'warn' ? 'Due now' : 'OK'}</span>
+        {open ? <ChevronDown size={20}/> : <ChevronRight size={20}/>}
+      </div>
     </button>
-
-    <div className="months compactMonths">{months.map(month => <button type="button" key={month.key} title={`${month.label}: ${month.status}`} onClick={(event) => { event.stopPropagation(); onMonthClick(member, month.index); }} className={`monthCell ${month.status}`} disabled={month.status === 'inactive'}>{month.label}</button>)}</div>
 
     {open && <div className="memberDetails">
       <p className="note">{member.note || 'No notes'}</p>
+
       <div className="memberStats">
         <div><span>Monthly</span><b>{toMoney(member.monthlyFee)}</b></div>
-        <div><span>Weekly old</span><b>{toMoney(member.weeklyFee)}</b></div>
-        <div><span>Due value</span><b className={member.due > 0 ? 'dueText' : 'okText'}>{toMoney(member.due)}</b></div>
+        <div><span>Weekly</span><b>{toMoney(member.weeklyFee)}</b></div>
+        <div><span>Due</span><b className={member.due > 0 ? 'dueText' : 'okText'}>{toMoney(member.due)}</b></div>
       </div>
+
       <div className="miniInfo">
         <span>Paid until <b>{paidUntil}</b></span>
         <span>Last week <b>{member.lastPaidWeek}</b></span>
         <span>Weekly <b>{member.weeklyStatus}</b></span>
       </div>
-      <div className="summaryStrip"><span>Paid: <b>{summary.paid}</b></span><span>Due: <b>{summary.due}</b></span><span>Overdue: <b>{summary.overdue}</b></span><span>Future: <b>{summary.future}</b></span></div>
-      <p className="muted smallHelp">Click any active month to cycle: Future/Due/Overdue/Paid. Jan-Jun 2026 are locked as inactive.</p>
+
+      <div className="months compactMonths">{monthLabels.map((month, index) => {
+        const monthStatus = getMonthStatus(member, index);
+        const disabled = monthStatus === 'inactive';
+        return <button
+          type="button"
+          key={month}
+          disabled={disabled}
+          title={disabled ? 'Inactive before July 2026' : `Click to change. Current: ${monthStatus}`}
+          onClick={() => onMonthChange(member.id, index, nextManualStatus(monthStatus))}
+          className={`monthCell ${monthStatus}`}
+        >
+          <span>{month}</span><small>{monthStatus}</small>
+        </button>;
+      })}</div>
     </div>}
   </article>;
 }
 
 function Transactions({ transactions, onAddPayment, onAddExpense }) {
-  const income = transactions.filter(tx => Number(tx.amount) > 0).reduce((sum, tx) => sum + Number(tx.amount), 0);
-  const expense = Math.abs(transactions.filter(tx => Number(tx.amount) < 0).reduce((sum, tx) => sum + Number(tx.amount), 0));
-  return <section className="panel"><div className="panelTitle"><div><h2>Transactions from Firestore</h2><p className="muted">Payments now store real member names and paid months.</p></div><div className="panelActions"><button className="primary" onClick={onAddPayment}>Add payment</button><button className="secondary" onClick={onAddExpense}>Add expense</button><span>{transactions.length} loaded · Income {toMoney(income)} · Expenses {toMoney(expense)}</span></div></div><table><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Member / Owner</th><th>Months</th><th>Description</th><th>Amount</th></tr></thead><tbody>{transactions.map((tx, index) => <tr key={`${tx.id}-${index}`}><td>{tx.id}</td><td>{String(tx.date)}</td><td>{tx.type}</td><td>{tx.member}</td><td>{tx.months?.length ? tx.months.map(value => monthLabels[monthToIndex(value)] || value).join(', ') : '-'}</td><td>{tx.description}</td><td className={Number(tx.amount) >= 0 ? 'money' : 'cost'}>{Number(tx.amount) >= 0 ? '+' : ''}{toMoney(tx.amount)}</td></tr>)}</tbody></table></section>;
+  return <section className="panel">
+    <div className="panelTitle">
+      <h2>Transactions from Firestore</h2>
+      <div className="panelActions">
+        <button className="primary" onClick={onAddPayment}>Add payment</button>
+        <button className="secondary" onClick={onAddExpense}>Add expense</button>
+        <span>{transactions.length} loaded</span>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Member</th><th>Months</th><th>Description</th><th>Amount</th></tr></thead>
+      <tbody>{transactions.map((tx, index) => <tr key={`${tx.id}-${index}`}>
+        <td>{tx.id}</td><td>{String(tx.date)}</td><td>{tx.type}</td><td>{tx.member}</td>
+        <td>{tx.months?.length ? tx.months.join(', ') : '-'}</td>
+        <td>{tx.description}</td><td className={Number(tx.amount) >= 0 ? 'money' : 'cost'}>{Number(tx.amount) >= 0 ? '+' : ''}{toMoney(tx.amount)}</td>
+      </tr>)}</tbody>
+    </table>
+  </section>;
 }
 
 function Reports({ stats, dashboardRows }) {
@@ -551,61 +544,98 @@ function AddMemberModal({ onClose, onSave }) {
   const [monthsPaid, setMonthsPaid] = useState([monthKey(START_MONTH_INDEX)]);
   const [saving, setSaving] = useState(false);
 
-  function toggleMonth(month) { setMonthsPaid(prev => prev.includes(month) ? prev.filter(item => item !== month) : [...prev, month].sort()); }
-  async function submit(event) { event.preventDefault(); setSaving(true); const ok = await onSave({ name, category, monthlyFee, weeklyFee, notes, monthsPaid }); if (!ok) setSaving(false); }
+  function toggleMonth(month) {
+    setMonthsPaid(prev => prev.includes(month) ? prev.filter(item => item !== month) : [...prev, month].sort());
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    const ok = await onSave({ name, category, monthlyFee, weeklyFee, notes, monthsPaid });
+    if (!ok) setSaving(false);
+  }
+
   const monthValues = monthLabels.map((label, index) => monthKey(index));
 
   return <div className="modal" onClick={onClose}>
     <form className="modalCard" onClick={event => event.stopPropagation()} onSubmit={submit}>
       <button type="button" className="close" onClick={onClose}><X size={18}/></button>
       <h2>Add member to Firestore</h2>
-      <p className="muted">Jan-Jun 2026 will be saved as inactive. Select any paid months from July onwards.</p>
+      <p className="muted">Jan-Jun are inactive. Select paid months from July onwards.</p>
+
       <label>Name<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Siju" /></label>
       <label>Category<select value={category} onChange={event => setCategory(event.target.value)}><option>ACTIVE</option><option>ACTIVE - new member</option><option>ORANGE - email not found</option><option>RED - left/resigned</option></select></label>
-      <div className="formGrid"><label>Monthly fee<input value={monthlyFee} onChange={event => setMonthlyFee(event.target.value)} /></label><label>Weekly old fee<input value={weeklyFee} onChange={event => setWeeklyFee(event.target.value)} /></label></div>
+      <div className="formGrid">
+        <label>Monthly fee<input value={monthlyFee} onChange={event => setMonthlyFee(event.target.value)} /></label>
+        <label>Weekly fee<input value={weeklyFee} onChange={event => setWeeklyFee(event.target.value)} /></label>
+      </div>
       <label>Notes<input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Optional note" /></label>
+
       <div className="monthPicker"><p>Months paid</p>{monthValues.map((value, index) => <button type="button" key={value} disabled={index < START_MONTH_INDEX} onClick={() => toggleMonth(value)} className={index < START_MONTH_INDEX ? 'inactive' : monthsPaid.includes(value) ? 'paid' : 'future'}>{monthLabels[index]}</button>)}</div>
+
       <div className="modalActions"><button type="button" onClick={onClose}>Cancel</button><button className="primary" type="submit" disabled={saving}><Save size={16}/>{saving ? 'Saving...' : 'Save member'}</button></div>
     </form>
   </div>;
 }
 
 function AddTransactionModal({ kind, members, onClose, onSave }) {
-  const activeMembers = members.filter(m => !m.resigned);
   const [type, setType] = useState(kind || 'Payment');
-  const [member, setMember] = useState(kind === 'Expense' ? 'Tea Club' : (activeMembers[0]?.name || ''));
+  const firstActive = members.find(m => !m.resigned)?.name || '';
+  const [member, setMember] = useState(kind === 'Expense' ? 'Tea Club' : firstActive);
   const [amount, setAmount] = useState('5');
   const [category, setCategory] = useState(kind === 'Expense' ? 'Supplies' : 'Membership');
   const [description, setDescription] = useState('');
+  const [months, setMonths] = useState(type === 'Expense' ? [] : [monthKey(START_MONTH_INDEX)]);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [months, setMonths] = useState([monthKey(Math.max(START_MONTH_INDEX, getCurrentMonthIndex()))]);
   const [saving, setSaving] = useState(false);
 
-  function toggleMonth(value) { setMonths(prev => prev.includes(value) ? prev.filter(item => item !== value) : [...prev, value].sort()); }
-  function changeType(nextType) {
-    setType(nextType);
-    setCategory(nextType === 'Expense' ? 'Supplies' : 'Membership');
-    setMember(nextType === 'Expense' ? 'Tea Club' : (activeMembers[0]?.name || ''));
+  function changeType(value) {
+    setType(value);
+    if (value === 'Expense') {
+      setMember('Tea Club');
+      setMonths([]);
+      setCategory('Supplies');
+    } else {
+      setMember(firstActive);
+      setMonths([monthKey(START_MONTH_INDEX)]);
+      setCategory('Membership');
+    }
   }
-  async function submit(event) { event.preventDefault(); setSaving(true); const ok = await onSave({ kind: type, member, amount, category, description, date, months: type === 'Expense' ? [] : months }); if (!ok) setSaving(false); }
+
+  function toggleMonth(month) {
+    setMonths(prev => prev.includes(month) ? prev.filter(item => item !== month) : [...prev, month].sort());
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    const ok = await onSave({ kind: type, member, amount, category, description, date, months });
+    if (!ok) setSaving(false);
+  }
+
+  const monthValues = monthLabels.map((label, index) => monthKey(index));
 
   return <div className="modal" onClick={onClose}>
     <form className="modalCard" onClick={event => event.stopPropagation()} onSubmit={submit}>
       <button type="button" className="close" onClick={onClose}><X size={18}/></button>
       <h2>{type === 'Expense' ? 'Add expense' : 'Add payment'}</h2>
-      <p className="muted">Payments update the selected member months automatically.</p>
+      <p className="muted">Payments are linked to members and selected months.</p>
+
       <label>Type<select value={type} onChange={event => changeType(event.target.value)}><option>Payment</option><option>Expense</option></select></label>
-      <label>{type === 'Expense' ? 'Paid by / owner' : 'Member who paid'}<select value={member} onChange={event => setMember(event.target.value)}>{type === 'Expense' && <option>Tea Club</option>}{activeMembers.map(m => <option key={m.id}>{m.name}</option>)}</select></label>
+      <label>{type === 'Expense' ? 'Paid by / item owner' : 'Member'}<select value={member} onChange={event => setMember(event.target.value)}>{type === 'Expense' && <option>Tea Club</option>}{members.filter(m => !m.resigned).map(m => <option key={m.id}>{m.name}</option>)}</select></label>
       <div className="formGrid"><label>Amount<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="5" /></label><label>Date<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div>
-      {type !== 'Expense' && <div className="monthPicker"><p>Paid month(s)</p>{monthLabels.map((label, index) => <button type="button" key={label} disabled={index < START_MONTH_INDEX} onClick={() => toggleMonth(monthKey(index))} className={index < START_MONTH_INDEX ? 'inactive' : months.includes(monthKey(index)) ? 'paid' : 'future'}>{label}</button>)}</div>}
+
+      {type !== 'Expense' && <div className="monthPicker"><p>Paid months</p>{monthValues.map((value, index) => <button type="button" key={value} disabled={index < START_MONTH_INDEX} onClick={() => toggleMonth(value)} className={index < START_MONTH_INDEX ? 'inactive' : months.includes(value) ? 'paid' : 'future'}>{monthLabels[index]}</button>)}</div>}
+
       <label>Category<input value={category} onChange={event => setCategory(event.target.value)} placeholder="Membership / Milk / Tea bags" /></label>
       <label>Description<input value={description} onChange={event => setDescription(event.target.value)} placeholder="Optional note" /></label>
+
       <div className="modalActions"><button type="button" onClick={onClose}>Cancel</button><button className="primary" type="submit" disabled={saving}><Save size={16}/>{saving ? 'Saving...' : 'Save transaction'}</button></div>
     </form>
   </div>;
 }
 
-function Settings({ data }){ return <section className="panel"><h2>Settings</h2><p><b>Mode:</b> Firestore read/write</p><p><b>Document:</b> teaClub/main</p><p><b>Members loaded:</b> {data.members.length}</p><p><b>Transactions loaded:</b> {data.transactions.length}</p><p><b>v6.4:</b> member month statuses + automatic payment months</p><p><b>Weekly rows:</b> {data.weekly.length}</p><p><b>Transition rows:</b> {data.transition.length}</p></section>; }
+function Settings({ data }){ return <section className="panel"><h2>Settings</h2><p><b>Mode:</b> Firestore read/write</p><p><b>Document:</b> teaClub/main</p><p><b>Members loaded:</b> {data.members.length}</p><p><b>v6.4:</b> accordion members, month statuses, linked transactions</p><p><b>Transactions loaded:</b> {data.transactions.length}</p><p><b>Weekly rows:</b> {data.weekly.length}</p><p><b>Transition rows:</b> {data.transition.length}</p></section>; }
 function Stat({ title, value, tone }){ return <div className={`stat ${tone || ''}`}><span>{title}</span><b>{value}</b></div>; }
 function StockItem({ name, qty, level }){ return <div className="stockItem"><h3>{name}</h3><p>{qty}</p><span className={level === 'LOW' ? 'low' : 'ok'}>{level}</span></div>; }
 
