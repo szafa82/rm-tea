@@ -1,6 +1,6 @@
 scripts:
-  buildCommand: npm install && npm run build
-  runCommand: npm install --omit=dev && npm run start
+  buildCommand: npm run build
+  runCommand: npm run start
 
 outputFiles:
   serverApp:
