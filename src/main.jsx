@@ -1,10 +1,34 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon,
-  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle, X, Save
+  Wallet,
+  ReceiptText,
+  BarChart3,
+  Package,
+  Image,
+  Settings as SettingsIcon,
+  Plus,
+  Search,
+  Bell,
+  Download,
+  Coffee,
+  ShieldCheck,
+  RefreshCw,
+  AlertTriangle,
+  X,
+  Save
 } from 'lucide-react';
-import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub, saveMembersAndTransactionsToTeaClub } from './services/firestore.js';
+
+import Members from './components/Members';
+import MemberCard from './components/MemberCard';
+
+import {
+  loadTeaClub,
+  saveMembersToTeaClub,
+  saveTransactionsToTeaClub,
+  saveMembersAndTransactionsToTeaClub
+} from './services/firestore.js';
+
 import './style.css';
 
 const APP_VERSION = 'V6.4 MEMBERS + TRANSACTIONS PREMIUM';
