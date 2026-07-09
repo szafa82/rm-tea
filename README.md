@@ -1,7 +1,7 @@
-# RM Tea Club Manager v5 CLEAN
+# RM Tea Club Manager v6 Firestore Read
 
-Fresh clean version. No old spreadsheet reload. No old HTML app. Add member works with React state and localStorage.
+Clean v6 based on existing Firestore document: `teaClub/main/data`.
 
-Visible marker: **V5 CLEAN BUILD**.
+This version is read-only for Firestore. It displays existing members, transactions, dashboard rows and months without changing database data.
 
-Upload all files/folders except node_modules and dist.
+Visible marker: **V6 FIRESTORE READ**.

@@ -1,264 +1,251 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { loadTeaClub } from "./services/firestore";
 import { createRoot } from 'react-dom/client';
-import { Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon, Plus, Search, Bell, Download, Coffee, ShieldCheck, X, Save, Trash2, Pencil } from 'lucide-react';
+import {
+  Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon,
+  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle
+} from 'lucide-react';
+import { loadTeaClub } from './services/firestore.js';
 import './style.css';
 
-const APP_VERSION = 'V5 CLEAN BUILD';
-const STORAGE_MEMBERS = 'rmTeaClub_v5_members';
-const STORAGE_TRANSACTIONS = 'rmTeaClub_v5_transactions';
-const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const APP_VERSION = 'V6 FIRESTORE READ';
+const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const monthNames = {
+  jan: 0, january: 0,
+  feb: 1, february: 1,
+  mar: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4,
+  jun: 5, june: 5,
+  jul: 6, july: 6,
+  aug: 7, august: 7,
+  sep: 8, sept: 8, september: 8,
+  oct: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, december: 11
+};
 
-const seedMembers = [
-  { id: 1, name: 'Abbas', tag: 'Paid ahead', paid: [0,1,2,3,4,5,6,7,8,9,10,11], note: 'Paid until end of year', resigned: false },
-  { id: 2, name: 'Adam', tag: 'Admin', paid: [6], note: 'Treasurer', resigned: false },
-  { id: 3, name: 'Fred', tag: 'Active', paid: [6], note: 'Active member', resigned: false },
-  { id: 4, name: 'Pietro', tag: 'Active', paid: [6,7,8], note: 'Paid ahead', resigned: false },
-  { id: 5, name: 'Kehinde', tag: 'Due', paid: [], note: 'Needs July payment', resigned: false }
-];
+function toMoney(value) {
+  const number = Number(value || 0);
+  return `£${number.toFixed(2)}`;
+}
 
-const seedTransactions = [
-  { id: 'TC-0001', date: '2026-07-01', type: 'Payment', member: 'Abbas', category: 'Membership', amount: 36 },
-  { id: 'TC-0002', date: '2026-07-02', type: 'Payment', member: 'Adam', category: 'Membership', amount: 6 },
-  { id: 'TC-0003', date: '2026-07-04', type: 'Expense', member: 'Tea Club', category: 'Milk', amount: -9.8 },
-  { id: 'TC-0004', date: '2026-07-05', type: 'Expense', member: 'Tea Club', category: 'Tea bags', amount: -14.5 }
-];
+function monthToIndex(value) {
+  if (typeof value === 'number') return value >= 0 && value <= 11 ? value : null;
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) return null;
 
-function readStorage(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
+  const iso = text.match(/(20\d{2})-(\d{2})/);
+  if (iso) {
+    const index = Number(iso[2]) - 1;
+    return index >= 0 && index <= 11 ? index : null;
   }
+
+  const first = text.split(/\s|\//)[0];
+  return monthNames[first] ?? null;
+}
+
+function normalizePaidMonths(member) {
+  const source = member.paidMonths || member.monthsPaid || member.months || [];
+  if (!Array.isArray(source)) return [];
+
+  return [...new Set(source.map(monthToIndex).filter(index => index !== null))].sort((a, b) => a - b);
+}
+
+function normalizeMember(member, index) {
+  const name = String(member.name || member.member || member.fullName || `Member ${index + 1}`).trim();
+  const category = member.monthlyCategory || member.category || member.status || 'ACTIVE';
+  const notes = member.notes || member.monthlyNotes || member.note || '';
+  const paid = normalizePaidMonths(member);
+  const monthlyOutstanding = Number(member.monthlyOutstanding ?? member.monthlyDue ?? 0);
+  const oldDebt = Number(member.oldDebt ?? member.weeklyDue ?? 0);
+  const credit = Number(member.credit ?? member.paidCredited ?? 0);
+  const due = Math.max(0, monthlyOutstanding + oldDebt - credit);
+  const resigned = String(category).toLowerCase().includes('resign') || String(member.status || '').toLowerCase().includes('left');
+
+  return {
+    raw: member,
+    id: member.id ?? `${name}-${index}`,
+    name,
+    tag: resigned ? 'Left / resigned' : String(category || 'ACTIVE'),
+    paid,
+    note: notes || member.weeklyStatus || 'No notes',
+    resigned,
+    monthlyFee: Number(member.monthlyFee ?? 5),
+    weeklyFee: Number(member.weeklyFee ?? 1),
+    monthlyOutstanding,
+    oldDebt,
+    credit,
+    due,
+    lastPaidWeek: member.lastPaidWeek || member.endWeek || '-',
+    weeklyStatus: member.weeklyStatus || '-'
+  };
+}
+
+function normalizeTransaction(tx, index) {
+  const income = Number(tx.income ?? tx.payment ?? tx.paid ?? 0);
+  const expense = Number(tx.expense ?? tx.spent ?? 0);
+  const amount = Number(tx.amount ?? (income - expense));
+  const description = tx.description || tx.descript || tx.notes || tx.note || tx.category || 'Transaction';
+
+  return {
+    id: tx.id || tx.ref || `TX-${String(index + 1).padStart(4, '0')}`,
+    date: tx.date || tx.createdAt || tx.week || '-',
+    type: amount >= 0 ? 'Income' : 'Expense',
+    member: tx.member || tx.name || 'Tea Club',
+    category: tx.category || description,
+    description,
+    amount
+  };
 }
 
 function App() {
   const [active, setActive] = useState('Members');
   const [query, setQuery] = useState('');
-  const [modal, setModal] = useState(null);
-  const [toast, setToast] = useState('');
-  const [members, setMembers] = useState(() => readStorage(STORAGE_MEMBERS, seedMembers));
-  const [transactions, setTransactions] = useState(() => readStorage(STORAGE_TRANSACTIONS, seedTransactions));
+  const [status, setStatus] = useState('Loading Firestore...');
+  const [error, setError] = useState('');
+  const [clubData, setClubData] = useState({
+    members: [],
+    transactions: [],
+    months: [],
+    dashboardRows: [],
+    messages: [],
+    weekly: [],
+    transition: []
+  });
 
-  useEffect(() => localStorage.setItem(STORAGE_MEMBERS, JSON.stringify(members)), [members]);
-  useEffect(() => localStorage.setItem(STORAGE_TRANSACTIONS, JSON.stringify(transactions)), [transactions]);
+  async function refreshData() {
+    try {
+      setError('');
+      setStatus('Loading Firestore...');
+      const firestore = await loadTeaClub();
+      console.log('Firestore:', firestore);
+
+      const data = firestore?.data || {};
+      const members = Array.isArray(data.members) ? data.members.map(normalizeMember) : [];
+      const transactions = Array.isArray(data.transactions) ? data.transactions.map(normalizeTransaction) : [];
+
+      setClubData({
+        members,
+        transactions,
+        months: Array.isArray(data.months) ? data.months : [],
+        dashboardRows: Array.isArray(data.dashboardRows) ? data.dashboardRows : [],
+        messages: Array.isArray(data.messages) ? data.messages : [],
+        weekly: Array.isArray(data.weekly) ? data.weekly : [],
+        transition: Array.isArray(data.transition) ? data.transition : [],
+        raw: data,
+        updatedAt: firestore?.updatedAt || null
+      });
+
+      setStatus(`Firestore connected: ${members.length} members loaded`);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || String(err));
+      setStatus('Firestore error');
+    }
+  }
+
   useEffect(() => {
+    refreshData();
+  }, []);
 
-    async function loadFirestore() {
+  const members = clubData.members;
+  const transactions = clubData.transactions;
+  const filteredMembers = members.filter(member => [member.name, member.tag, member.note, member.weeklyStatus].join(' ').toLowerCase().includes(query.toLowerCase()));
 
-        try {
-
-            const firestore = await loadTeaClub();
-
-            console.log("Firestore:", firestore);
-
-if (firestore?.data?.members) {
-    // setMembers(firestore.data.members);
-}
-
-if (firestore?.data?.transactions) {
-    // setTransactions(firestore.data.transactions);
-}
-
-        } catch (err) {
-
-            console.error(err);
-
-        }
-
-    }
-
-    loadFirestore();
-
-}, []);
-
-  const notify = (text) => {
-    setToast(text);
-    window.clearTimeout(window.__rmToast);
-    window.__rmToast = window.setTimeout(() => setToast(''), 2500);
-  };
-
-  const addMember = (payload) => {
-    const name = String(payload?.name || '').trim();
-    if (!name) {
-      notify('Name is required');
-      return false;
-    }
-    if (members.some(m => m.name.toLowerCase() === name.toLowerCase())) {
-      notify(`${name} already exists`);
-      return false;
-    }
-    const newMember = {
-      id: Date.now(),
-      name,
-      tag: payload.tag || 'Active',
-      paid: Array.isArray(payload.paid) ? payload.paid : [],
-      note: payload.note || 'New member',
-      resigned: false
-    };
-    setMembers(prev => [newMember, ...prev]);
-    setActive('Members');
-    setModal(null);
-    notify(`${name} added`);
-    return true;
-  };
-
-  const addTestMember = () => {
-    const n = members.filter(m => m.name.startsWith('TEST MEMBER')).length + 1;
-    addMember({ name: `TEST MEMBER ${n}`, tag: 'Test', note: 'Added by test button', paid: [6] });
-  };
-
-  const deleteMember = (id) => {
-    const member = members.find(m => m.id === id);
-    setMembers(prev => prev.filter(m => m.id !== id));
-    notify(`${member?.name || 'Member'} deleted`);
-  };
-
-  const togglePaidMonth = (id, monthIndex) => {
-    setMembers(prev => prev.map(m => {
-      if (m.id !== id) return m;
-      const paid = m.paid.includes(monthIndex) ? m.paid.filter(x => x !== monthIndex) : [...m.paid, monthIndex].sort((a,b)=>a-b);
-      return { ...m, paid };
-    }));
-  };
-
-  const addTransaction = (payload) => {
-    const amount = Number(payload.amount || 0);
-    if (!amount) return notify('Amount is required');
-    const tx = {
-      id: `TC-${String(transactions.length + 1).padStart(4,'0')}`,
-      date: payload.date || new Date().toISOString().slice(0,10),
-      type: amount >= 0 ? 'Payment' : 'Expense',
-      member: payload.member || 'Tea Club',
-      category: payload.category || 'General',
-      amount
-    };
-    setTransactions(prev => [tx, ...prev]);
-    setModal(null);
-    notify('Transaction added');
-  };
-
-  const filteredMembers = members.filter(m => [m.name, m.tag, m.note].join(' ').toLowerCase().includes(query.toLowerCase()));
   const stats = useMemo(() => {
-    const paid = transactions.filter(t => Number(t.amount) > 0).reduce((a,t) => a + Number(t.amount), 0);
-    const spent = Math.abs(transactions.filter(t => Number(t.amount) < 0).reduce((a,t) => a + Number(t.amount), 0));
-    return { paid, spent, balance: paid - spent, members: members.length, due: members.filter(m => !m.paid.includes(6)).length };
+    const income = transactions.filter(t => Number(t.amount) > 0).reduce((sum, tx) => sum + Number(tx.amount), 0);
+    const spent = Math.abs(transactions.filter(t => Number(t.amount) < 0).reduce((sum, tx) => sum + Number(tx.amount), 0));
+    const due = members.reduce((sum, member) => sum + Number(member.due || 0), 0);
+    const activeMembers = members.filter(member => !member.resigned).length;
+
+    return {
+      income,
+      spent,
+      balance: income - spent,
+      due,
+      activeMembers,
+      allMembers: members.length,
+      transactions: transactions.length
+    };
   }, [members, transactions]);
 
   const nav = [
-    ['Dashboard', BarChart3], ['Members', Users], ['Transactions', ReceiptText], ['Reports', Wallet], ['Stock', Package], ['Poster Studio', Image], ['Settings', SettingsIcon]
+    ['Dashboard', BarChart3],
+    ['Members', Users],
+    ['Transactions', ReceiptText],
+    ['Reports', Wallet],
+    ['Stock', Package],
+    ['Poster Studio', Image],
+    ['Settings', SettingsIcon]
   ];
 
   return <div className="app">
     <aside className="sidebar">
-      <div className="brand"><div className="logo">RM</div><div><b>Tea Club</b><span>Manager</span></div></div>
+      <div className="brand"><div className="logo">RM</div><div><b>Tea Club</b><span>Firestore Manager</span></div></div>
       <div className="versionBox">{APP_VERSION}</div>
       {nav.map(([name, Icon]) => <button key={name} onClick={() => setActive(name)} className={active === name ? 'active' : ''}><Icon size={18}/>{name}</button>)}
-      <div className="safe"><ShieldCheck size={17}/> Fresh project<br/>Spreadsheet reload removed</div>
+      <div className="safe"><ShieldCheck size={17}/> Firestore read-only<br/>No database writes</div>
     </aside>
 
     <main className="main">
       <header className="topbar">
-        <div><span className="pill">{APP_VERSION}</span><h1>{active}</h1></div>
-        <div className="search"><Search size={16}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search..." /></div>
+        <div><span className="pill">{APP_VERSION}</span><h1>{active}</h1><p className={error ? 'status errorText' : 'status'}>{error || status}</p></div>
+        <div className="search"><Search size={16}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search members, payments, notes..." /></div>
         <button className="icon"><Bell size={18}/><span></span></button>
-        <button className="primary" onClick={() => setModal('addMember')}><Plus size={18}/>Add member</button>
-        <button className="dark" onClick={addTestMember}>+ TEST MEMBER</button>
+        <button className="primary" onClick={refreshData}><RefreshCw size={18}/>Refresh</button>
       </header>
 
-      {active === 'Dashboard' && <Dashboard stats={stats} />}
-      {active === 'Members' && <Members members={filteredMembers} onAdd={() => setModal('addMember')} onDelete={deleteMember} onToggleMonth={togglePaidMonth} onOpen={(member)=>setModal({type:'member', member})} />}
-      {active === 'Transactions' && <Transactions transactions={transactions} onAdd={() => setModal('addTransaction')} />}
-      {active === 'Reports' && <Reports stats={stats} transactions={transactions} />}
-      {active === 'Stock' && <Stock />}
-      {active === 'Poster Studio' && <Poster members={members} />}
-      {active === 'Settings' && <Settings onReset={() => { localStorage.removeItem(STORAGE_MEMBERS); localStorage.removeItem(STORAGE_TRANSACTIONS); setMembers(seedMembers); setTransactions(seedTransactions); notify('Local demo data reset'); }} />}
+      {error && <section className="panel errorPanel"><AlertTriangle/><div><h2>Firestore error</h2><p>{error}</p></div></section>}
+      {!error && active === 'Dashboard' && <Dashboard stats={stats} dashboardRows={clubData.dashboardRows} months={clubData.months} messages={clubData.messages} />}
+      {!error && active === 'Members' && <Members members={filteredMembers} total={members.length} />}
+      {!error && active === 'Transactions' && <Transactions transactions={transactions} />}
+      {!error && active === 'Reports' && <Reports stats={stats} dashboardRows={clubData.dashboardRows} />}
+      {!error && active === 'Stock' && <Stock />}
+      {!error && active === 'Poster Studio' && <Poster members={members} />}
+      {!error && active === 'Settings' && <Settings data={clubData} />}
     </main>
-
-    {modal === 'addMember' && <AddMemberModal onClose={() => setModal(null)} onSave={addMember} />}
-    {modal === 'addTransaction' && <AddTransactionModal members={members} onClose={() => setModal(null)} onSave={addTransaction} />}
-    {modal?.type === 'member' && <MemberModal member={modal.member} onClose={() => setModal(null)} />}
-    {toast && <div className="toast">{toast}</div>}
   </div>;
 }
 
-function Dashboard({ stats }) {
+function Dashboard({ stats, dashboardRows, months, messages }) {
   return <section className="grid">
-    <Stat title="Balance" value={`£${stats.balance.toFixed(2)}`} tone="green" />
-    <Stat title="Income" value={`£${stats.paid.toFixed(2)}`} />
-    <Stat title="Spent" value={`£${stats.spent.toFixed(2)}`} tone="red" />
-    <Stat title="Members" value={stats.members} tone="orange" />
-    <div className="panel wide"><h2>Cash flow</h2><div className="bars"><i style={{height:'70%'}}/><i style={{height:'46%'}}/><i style={{height:'85%'}}/><i style={{height:'55%'}}/><i style={{height:'78%'}}/></div></div>
-    <div className="panel"><h2>Alerts</h2><p className="alert good">✓ Add member works in v5</p><p className="alert">⚠ Firestore sync next</p></div>
+    <Stat title="Active members" value={stats.activeMembers} />
+    <Stat title="All members" value={stats.allMembers} />
+    <Stat title="Income" value={toMoney(stats.income)} tone="green" />
+    <Stat title="Expenses" value={toMoney(stats.spent)} tone="red" />
+    <Stat title="Outstanding" value={toMoney(stats.due)} tone="orange" />
+    <Stat title="Transactions" value={stats.transactions} />
+    <div className="panel wide"><h2>Firestore dashboard snapshot</h2><table><thead><tr><th>Item</th><th>Value</th><th>Note</th></tr></thead><tbody>{dashboardRows.slice(0, 8).map((row, index) => <tr key={index}><td>{row.label || row.item || '-'}</td><td><b>{String(row.value ?? '')}</b></td><td>{row.note || ''}</td></tr>)}</tbody></table></div>
+    <div className="panel"><h2>System</h2><p className="alert good">✓ Connected to teaClub/main</p><p className="alert good">✓ Reading existing Firestore data</p><p className="alert">Next: v6.1 write-safe add member</p><p><b>Months:</b> {months.join(', ') || '-'}</p><p><b>Messages:</b> {messages.length}</p></div>
   </section>;
 }
 
-function Members({ members, onAdd, onDelete, onToggleMonth, onOpen }) {
+function Members({ members, total }) {
   return <section>
-    <div className="topPanel"><div><h2>Members</h2><p>{members.length} displayed</p></div><button className="primary" onClick={onAdd}><Plus size={18}/>ADD NEW MEMBER</button></div>
-    <div className="members">{members.map(m => <div className="member" key={m.id}>
-      <div className="avatar">{m.name[0]}</div>
-      <div className="memberHead"><h3>{m.name}</h3><span>{m.tag}</span></div>
-      <p>{m.note}</p>
-      <div className="months">{months.map((mo,i) => <button key={mo} onClick={() => onToggleMonth(m.id, i)} className={m.paid.includes(i) ? 'paid' : i < 6 ? 'late' : 'future'}>{mo}</button>)}</div>
-      <div className="rowBtns"><button onClick={() => onOpen(m)}><Pencil size={15}/>Open</button><button className="danger" onClick={() => onDelete(m.id)}><Trash2 size={15}/>Delete</button></div>
+    <div className="topPanel"><div><h2>Members from Firestore</h2><p>{members.length} displayed of {total} loaded</p></div><button className="primary" disabled><Plus size={18}/>Add member in v6.1</button></div>
+    <div className="members">{members.map(member => <div className="member" key={member.id}>
+      <div className="avatar">{member.name?.[0] || '?'}</div>
+      <div className="memberHead"><h3>{member.name}</h3><span>{member.tag}</span></div>
+      <p>{member.note}</p>
+      <div className="memberMeta"><b>Monthly:</b> {toMoney(member.monthlyFee)}<b>Weekly:</b> {toMoney(member.weeklyFee)}<b>Outstanding:</b> {toMoney(member.due)}</div>
+      <div className="memberMeta"><b>Last paid week:</b> {member.lastPaidWeek}<b>Weekly status:</b> {member.weeklyStatus}</div>
+      <div className="months">{monthLabels.map((month, index) => <span key={month} className={member.paid.includes(index) ? 'paid' : index < 6 ? 'late' : 'future'}>{month}</span>)}</div>
     </div>)}</div>
   </section>;
 }
 
-function Transactions({ transactions, onAdd }) {
-  return <section className="panel"><div className="panelTitle"><h2>Transactions</h2><button className="primary" onClick={onAdd}>Add transaction</button></div><table><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Member</th><th>Category</th><th>Amount</th></tr></thead><tbody>{transactions.map(t => <tr key={t.id}><td>{t.id}</td><td>{t.date}</td><td>{t.type}</td><td>{t.member}</td><td>{t.category}</td><td className={Number(t.amount) >= 0 ? 'money' : 'cost'}>{Number(t.amount) >= 0 ? '+' : ''}£{Number(t.amount).toFixed(2)}</td></tr>)}</tbody></table></section>;
+function Transactions({ transactions }) {
+  return <section className="panel"><div className="panelTitle"><h2>Transactions from Firestore</h2><span>{transactions.length} loaded</span></div><table><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Member</th><th>Description</th><th>Amount</th></tr></thead><tbody>{transactions.map((tx, index) => <tr key={`${tx.id}-${index}`}><td>{tx.id}</td><td>{String(tx.date)}</td><td>{tx.type}</td><td>{tx.member}</td><td>{tx.description}</td><td className={Number(tx.amount) >= 0 ? 'money' : 'cost'}>{Number(tx.amount) >= 0 ? '+' : ''}{toMoney(tx.amount)}</td></tr>)}</tbody></table></section>;
 }
 
-function Reports({ stats }) {
-  return <section className="grid"><div className="panel wide"><h2>Reports</h2><div className="filters"><input type="date"/><input type="date"/><select><option>Sort by date</option><option>Sort by amount</option><option>Sort by member</option></select><button className="primary"><Download size={16}/>Export</button></div><p>Total paid: <b>£{stats.paid.toFixed(2)}</b></p><p>Total spent: <b>£{stats.spent.toFixed(2)}</b></p><p>Balance: <b>£{stats.balance.toFixed(2)}</b></p></div></section>;
+function Reports({ stats, dashboardRows }) {
+  return <section className="grid"><div className="panel wide"><h2>Reports read-only</h2><div className="filters"><input type="date"/><input type="date"/><select><option>Sort by date</option><option>Sort by amount</option><option>Sort by member</option></select><button className="primary"><Download size={16}/>Export later</button></div><p>Total income: <b>{toMoney(stats.income)}</b></p><p>Total spent: <b>{toMoney(stats.spent)}</b></p><p>Outstanding: <b>{toMoney(stats.due)}</b></p><p>Dashboard rows loaded: <b>{dashboardRows.length}</b></p></div></section>;
 }
-function Stock(){ return <section className="stock"><StockItem name="Tea bags" qty="4 boxes" level="OK"/><StockItem name="Milk" qty="1 bottle" level="LOW"/><StockItem name="Sugar" qty="2 bags" level="OK"/><StockItem name="Biscuits" qty="0" level="LOW"/></section>; }
-function Poster({ members }){ return <section className="poster"><div className="posterCard"><Coffee size={42}/><h1>RM Tea Club</h1><p>Member list</p><div>{members.map(m => <span key={m.id}>{m.name}</span>)}</div></div></section>; }
-function Settings({ onReset }){ return <section className="panel"><h2>Settings</h2><p><b>Monthly fee:</b> £6</p><p><b>Save mode:</b> browser localStorage</p><p><b>Old spreadsheet reload:</b> removed</p><button className="dark" onClick={onReset}>Reset local demo data</button></section>; }
+
+function Stock(){ return <section className="stock"><StockItem name="Tea bags" qty="from v6.1" level="OK"/><StockItem name="Milk" qty="from transactions" level="LOW"/><StockItem name="Sugar" qty="from transactions" level="OK"/><StockItem name="Biscuits" qty="from transactions" level="OK"/></section>; }
+function Poster({ members }){ return <section className="poster"><div className="posterCard"><Coffee size={42}/><h1>RM Tea Club</h1><p>{members.filter(m => !m.resigned).length} active members</p><div>{members.filter(m => !m.resigned).slice(0, 50).map(member => <span key={member.id}>{member.name}</span>)}</div></div></section>; }
+function Settings({ data }){ return <section className="panel"><h2>Settings</h2><p><b>Mode:</b> Firestore read-only</p><p><b>Document:</b> teaClub/main</p><p><b>Members loaded:</b> {data.members.length}</p><p><b>Transactions loaded:</b> {data.transactions.length}</p><p><b>Weekly rows:</b> {data.weekly.length}</p><p><b>Transition rows:</b> {data.transition.length}</p></section>; }
 function Stat({ title, value, tone }){ return <div className={`stat ${tone || ''}`}><span>{title}</span><b>{value}</b></div>; }
 function StockItem({ name, qty, level }){ return <div className="stockItem"><h3>{name}</h3><p>{qty}</p><span className={level === 'LOW' ? 'low' : 'ok'}>{level}</span></div>; }
-
-function AddMemberModal({ onClose, onSave }) {
-  const [name, setName] = useState('');
-  const [tag, setTag] = useState('Active');
-  const [note, setNote] = useState('');
-  const [paid, setPaid] = useState([6]);
-  const toggle = (i) => setPaid(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i].sort((a,b)=>a-b));
-  return <Modal title="Add new member" onClose={onClose}>
-    <form onSubmit={e => { e.preventDefault(); onSave({ name, tag, note, paid }); }}>
-      <label>Name<input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Siju" /></label>
-      <label>Status<select value={tag} onChange={e => setTag(e.target.value)}><option>Active</option><option>Paid ahead</option><option>Due</option><option>Admin</option><option>Test</option></select></label>
-      <label>Note<input value={note} onChange={e => setNote(e.target.value)} placeholder="Optional" /></label>
-      <div className="monthPicker"><p>Paid months</p>{months.map((mo,i) => <button type="button" key={mo} onClick={() => toggle(i)} className={paid.includes(i) ? 'paid' : 'future'}>{mo}</button>)}</div>
-      <div className="modalActions"><button type="button" onClick={onClose}>Cancel</button><button className="primary" type="submit"><Save size={16}/>Save member</button></div>
-    </form>
-  </Modal>;
-}
-
-function AddTransactionModal({ members, onClose, onSave }) {
-  const [member, setMember] = useState(members[0]?.name || 'Tea Club');
-  const [amount, setAmount] = useState('6');
-  const [category, setCategory] = useState('Membership');
-  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
-  return <Modal title="Add transaction" onClose={onClose}>
-    <form onSubmit={e => { e.preventDefault(); onSave({ member, amount, category, date }); }}>
-      <label>Member<select value={member} onChange={e => setMember(e.target.value)}>{members.map(m => <option key={m.id}>{m.name}</option>)}<option>Tea Club</option></select></label>
-      <label>Amount<input value={amount} onChange={e => setAmount(e.target.value)} placeholder="6 or -9.80" /></label>
-      <label>Category<input value={category} onChange={e => setCategory(e.target.value)} /></label>
-      <label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
-      <div className="modalActions"><button type="button" onClick={onClose}>Cancel</button><button className="primary" type="submit">Save</button></div>
-    </form>
-  </Modal>;
-}
-
-function MemberModal({ member, onClose }) {
-  return <Modal title={member.name} onClose={onClose}><p>{member.note}</p><p><b>Status:</b> {member.tag}</p><p><b>Paid months:</b> {member.paid.map(i => months[i]).join(', ') || '-'}</p><div className="modalActions"><button className="primary" onClick={onClose}>Close</button></div></Modal>;
-}
-
-function Modal({ title, onClose, children }) {
-  return <div className="modal" onClick={onClose}><div className="modalCard" onClick={e => e.stopPropagation()}><button className="close" onClick={onClose}><X size={18}/></button><h2>{title}</h2>{children}</div></div>;
-}
 
 createRoot(document.getElementById('root')).render(<App />);
