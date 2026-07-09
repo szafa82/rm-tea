@@ -1,8 +1,12 @@
-# RM Tea Club Manager v6.2 UI Polish
+# RM Tea Club Manager v6.3
 
-Firestore add member-only build with improved member card layout.
+Adds Firestore transaction writing.
 
-- Reads existing `teaClub/main/data`
-- Displays all Firestore members
-- No database writes
-- Cleaner larger cards and improved dashboard styling
+## New in v6.3
+- Add Payment button
+- Add Expense button
+- Saves to `teaClub/main/data.transactions`
+- Members are sorted A-Z after loading/adding
+- Existing Firestore data is preserved
+
+Firestore rules need temporary write access during testing.

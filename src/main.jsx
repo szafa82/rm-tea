@@ -4,10 +4,10 @@ import {
   Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon,
   Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle, X, Save
 } from 'lucide-react';
-import { loadTeaClub, saveMembersToTeaClub } from './services/firestore.js';
+import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub } from './services/firestore.js';
 import './style.css';
 
-const APP_VERSION = 'V6.2 ADD MEMBER FIRESTORE';
+const APP_VERSION = 'V6.3 ADD TRANSACTION FIRESTORE';
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const monthNames = {
   jan: 0, january: 0,
@@ -125,8 +125,10 @@ function App() {
       console.log('Firestore:', firestore);
 
       const data = firestore?.data || {};
-      const members = Array.isArray(data.members) ? data.members.map(normalizeMember) : [];
-      const transactions = Array.isArray(data.transactions) ? data.transactions.map(normalizeTransaction) : [];
+      const rawMembers = Array.isArray(data.members) ? [...data.members].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' })) : [];
+      const members = rawMembers.map(normalizeMember);
+      const rawTransactions = Array.isArray(data.transactions) ? [...data.transactions] : [];
+      const transactions = rawTransactions.map(normalizeTransaction);
 
       setClubData({
         members,
@@ -136,7 +138,7 @@ function App() {
         messages: Array.isArray(data.messages) ? data.messages : [],
         weekly: Array.isArray(data.weekly) ? data.weekly : [],
         transition: Array.isArray(data.transition) ? data.transition : [],
-        rawMembers: Array.isArray(data.members) ? data.members : [],
+        rawMembers,
         raw: data,
         updatedAt: firestore?.updatedAt || null
       });
@@ -197,7 +199,7 @@ function App() {
         createdIn: 'v6.2'
       };
 
-      const updatedMembers = [...clubData.rawMembers, newMember];
+      const updatedMembers = [...clubData.rawMembers, newMember].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' }));
       await saveMembersToTeaClub(updatedMembers);
       setModal(null);
       notify(`${name} added to Firestore`);
@@ -207,6 +209,49 @@ function App() {
       console.error(err);
       setError(err.message || String(err));
       notify('Could not save member. Check Firestore rules.');
+      return false;
+    }
+  }
+
+
+  async function addTransactionToFirestore(payload) {
+    const amountInput = Number(payload?.amount || 0);
+    if (!amountInput) {
+      notify('Amount is required');
+      return false;
+    }
+
+    const kind = payload.kind || 'Payment';
+    const signedAmount = kind === 'Expense' ? -Math.abs(amountInput) : Math.abs(amountInput);
+    const memberName = payload.member || 'Tea Club';
+    const today = new Date().toISOString().slice(0, 10);
+
+    try {
+      setStatus('Saving transaction to Firestore...');
+      const newTransaction = {
+        id: `TX-${Date.now()}`,
+        date: payload.date || today,
+        type: kind,
+        member: memberName,
+        name: memberName,
+        category: payload.category || (kind === 'Expense' ? 'General expense' : 'Membership'),
+        description: payload.description || payload.category || kind,
+        amount: signedAmount,
+        income: signedAmount > 0 ? signedAmount : 0,
+        expense: signedAmount < 0 ? Math.abs(signedAmount) : 0,
+        createdIn: 'v6.3'
+      };
+
+      const updatedTransactions = [newTransaction, ...(clubData.raw?.transactions || [])];
+      await saveTransactionsToTeaClub(updatedTransactions);
+      setModal(null);
+      notify(`${kind} saved to Firestore`);
+      await refreshData();
+      return true;
+    } catch (err) {
+      console.error(err);
+      setError(err.message || String(err));
+      notify('Could not save transaction. Check Firestore rules.');
       return false;
     }
   }
@@ -247,7 +292,7 @@ function App() {
       <div className="brand"><div className="logo">RM</div><div><b>Tea Club</b><span>Firestore Manager</span></div></div>
       <div className="versionBox">{APP_VERSION}</div>
       {nav.map(([name, Icon]) => <button key={name} onClick={() => setActive(name)} className={active === name ? 'active' : ''}><Icon size={18}/>{name}</button>)}
-      <div className="safe"><ShieldCheck size={17}/> Firestore read-only<br/>No database writes</div>
+      <div className="safe"><ShieldCheck size={17}/> Firestore read-only<br/>Firestore read/write</div>
     </aside>
 
     <main className="main">
@@ -256,13 +301,15 @@ function App() {
         <div className="search"><Search size={16}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search members, payments, notes..." /></div>
         <button className="icon"><Bell size={18}/><span></span></button>
         <button className="primary" onClick={() => setModal('addMember')}><Plus size={18}/>Add member</button>
+        <button className="secondary" onClick={() => setModal({ type: 'addTransaction', kind: 'Payment' })}>Add payment</button>
+        <button className="secondary" onClick={() => setModal({ type: 'addTransaction', kind: 'Expense' })}>Add expense</button>
         <button className="secondary" onClick={refreshData}><RefreshCw size={18}/>Refresh</button>
       </header>
 
       {error && <section className="panel errorPanel"><AlertTriangle/><div><h2>Firestore error</h2><p>{error}</p></div></section>}
       {!error && active === 'Dashboard' && <Dashboard stats={stats} dashboardRows={clubData.dashboardRows} months={clubData.months} messages={clubData.messages} />}
       {!error && active === 'Members' && <Members members={filteredMembers} total={members.length} onAdd={() => setModal('addMember')} />}
-      {!error && active === 'Transactions' && <Transactions transactions={transactions} />}
+      {!error && active === 'Transactions' && <Transactions transactions={transactions} onAddPayment={() => setModal({ type: 'addTransaction', kind: 'Payment' })} onAddExpense={() => setModal({ type: 'addTransaction', kind: 'Expense' })} />}
       {!error && active === 'Reports' && <Reports stats={stats} dashboardRows={clubData.dashboardRows} />}
       {!error && active === 'Stock' && <Stock />}
       {!error && active === 'Poster Studio' && <Poster members={members} />}
@@ -270,6 +317,7 @@ function App() {
     </main>
 
     {modal === 'addMember' && <AddMemberModal onClose={() => setModal(null)} onSave={addMemberToFirestore} />}
+    {modal?.type === 'addTransaction' && <AddTransactionModal kind={modal.kind} members={members} onClose={() => setModal(null)} onSave={addTransactionToFirestore} />}
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }
@@ -283,7 +331,7 @@ function Dashboard({ stats, dashboardRows, months, messages }) {
     <Stat title="Outstanding" value={toMoney(stats.due)} tone="orange" />
     <Stat title="Transactions" value={stats.transactions} />
     <div className="panel wide"><h2>Firestore dashboard snapshot</h2><table><thead><tr><th>Item</th><th>Value</th><th>Note</th></tr></thead><tbody>{dashboardRows.slice(0, 8).map((row, index) => <tr key={index}><td>{row.label || row.item || '-'}</td><td><b>{String(row.value ?? '')}</b></td><td>{row.note || ''}</td></tr>)}</tbody></table></div>
-    <div className="panel"><h2>System</h2><p className="alert good">✓ Connected to teaClub/main</p><p className="alert good">✓ Reading existing Firestore data</p><p className="alert">Next: v6.2 write-safe add member</p><p><b>Months:</b> {months.join(', ') || '-'}</p><p><b>Messages:</b> {messages.length}</p></div>
+    <div className="panel"><h2>System</h2><p className="alert good">✓ Connected to teaClub/main</p><p className="alert good">✓ Reading existing Firestore data</p><p className="alert">v6.3: Add payments and expenses</p><p><b>Months:</b> {months.join(', ') || '-'}</p><p><b>Messages:</b> {messages.length}</p></div>
   </section>;
 }
 
@@ -342,8 +390,8 @@ function MemberCard({ member }) {
   </article>;
 }
 
-function Transactions({ transactions }) {
-  return <section className="panel"><div className="panelTitle"><h2>Transactions from Firestore</h2><span>{transactions.length} loaded</span></div><table><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Member</th><th>Description</th><th>Amount</th></tr></thead><tbody>{transactions.map((tx, index) => <tr key={`${tx.id}-${index}`}><td>{tx.id}</td><td>{String(tx.date)}</td><td>{tx.type}</td><td>{tx.member}</td><td>{tx.description}</td><td className={Number(tx.amount) >= 0 ? 'money' : 'cost'}>{Number(tx.amount) >= 0 ? '+' : ''}{toMoney(tx.amount)}</td></tr>)}</tbody></table></section>;
+function Transactions({ transactions, onAddPayment, onAddExpense }) {
+  return <section className="panel"><div className="panelTitle"><h2>Transactions from Firestore</h2><div className="panelActions"><button className="primary" onClick={onAddPayment}>Add payment</button><button className="secondary" onClick={onAddExpense}>Add expense</button><span>{transactions.length} loaded</span></div></div><table><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Member</th><th>Description</th><th>Amount</th></tr></thead><tbody>{transactions.map((tx, index) => <tr key={`${tx.id}-${index}`}><td>{tx.id}</td><td>{String(tx.date)}</td><td>{tx.type}</td><td>{tx.member}</td><td>{tx.description}</td><td className={Number(tx.amount) >= 0 ? 'money' : 'cost'}>{Number(tx.amount) >= 0 ? '+' : ''}{toMoney(tx.amount)}</td></tr>)}</tbody></table></section>;
 }
 
 function Reports({ stats, dashboardRows }) {
@@ -396,7 +444,41 @@ function AddMemberModal({ onClose, onSave }) {
   </div>;
 }
 
-function Settings({ data }){ return <section className="panel"><h2>Settings</h2><p><b>Mode:</b> Firestore read/write for members</p><p><b>Document:</b> teaClub/main</p><p><b>Members loaded:</b> {data.members.length}</p><p><b>v6.2:</b> Add member writes to teaClub/main/data.members</p><p><b>Transactions loaded:</b> {data.transactions.length}</p><p><b>Weekly rows:</b> {data.weekly.length}</p><p><b>Transition rows:</b> {data.transition.length}</p></section>; }
+
+function AddTransactionModal({ kind, members, onClose, onSave }) {
+  const [type, setType] = useState(kind || 'Payment');
+  const [member, setMember] = useState(kind === 'Expense' ? 'Tea Club' : (members.find(m => !m.resigned)?.name || 'Tea Club'));
+  const [amount, setAmount] = useState(kind === 'Expense' ? '5' : '5');
+  const [category, setCategory] = useState(kind === 'Expense' ? 'Supplies' : 'Membership');
+  const [description, setDescription] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    const ok = await onSave({ kind: type, member, amount, category, description, date });
+    if (!ok) setSaving(false);
+  }
+
+  return <div className="modal" onClick={onClose}>
+    <form className="modalCard" onClick={event => event.stopPropagation()} onSubmit={submit}>
+      <button type="button" className="close" onClick={onClose}><X size={18}/></button>
+      <h2>{type === 'Expense' ? 'Add expense' : 'Add payment'}</h2>
+      <p className="muted">This writes to <b>teaClub/main/data.transactions</b>.</p>
+
+      <label>Type<select value={type} onChange={event => setType(event.target.value)}><option>Payment</option><option>Expense</option></select></label>
+      <label>{type === 'Expense' ? 'Paid by / item owner' : 'Member'}<select value={member} onChange={event => setMember(event.target.value)}><option>Tea Club</option>{members.filter(m => !m.resigned).map(m => <option key={m.id}>{m.name}</option>)}</select></label>
+      <div className="formGrid"><label>Amount<input value={amount} onChange={event => setAmount(event.target.value)} placeholder="5" /></label><label>Date<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div>
+      <label>Category<input value={category} onChange={event => setCategory(event.target.value)} placeholder="Membership / Milk / Tea bags" /></label>
+      <label>Description<input value={description} onChange={event => setDescription(event.target.value)} placeholder="Optional note" /></label>
+
+      <div className="modalActions"><button type="button" onClick={onClose}>Cancel</button><button className="primary" type="submit" disabled={saving}><Save size={16}/>{saving ? 'Saving...' : 'Save transaction'}</button></div>
+    </form>
+  </div>;
+}
+
+function Settings({ data }){ return <section className="panel"><h2>Settings</h2><p><b>Mode:</b> Firestore read/write for members</p><p><b>Document:</b> teaClub/main</p><p><b>Members loaded:</b> {data.members.length}</p><p><b>v6.2:</b> Add member writes to teaClub/main/data.members</p><p><b>v6.3:</b> Add transaction writes to teaClub/main/data.transactions</p><p><b>Transactions loaded:</b> {data.transactions.length}</p><p><b>Weekly rows:</b> {data.weekly.length}</p><p><b>Transition rows:</b> {data.transition.length}</p></section>; }
 function Stat({ title, value, tone }){ return <div className={`stat ${tone || ''}`}><span>{title}</span><b>{value}</b></div>; }
 function StockItem({ name, qty, level }){ return <div className="stockItem"><h3>{name}</h3><p>{qty}</p><span className={level === 'LOW' ? 'low' : 'ok'}>{level}</span></div>; }
 
