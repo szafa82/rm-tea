@@ -1,7 +1,8 @@
-# RM Tea Club Manager v6 Firestore Read
+# RM Tea Club Manager v6.1 UI Polish
 
-Clean v6 based on existing Firestore document: `teaClub/main/data`.
+Firestore read-only build with improved member card layout.
 
-This version is read-only for Firestore. It displays existing members, transactions, dashboard rows and months without changing database data.
-
-Visible marker: **V6 FIRESTORE READ**.
+- Reads existing `teaClub/main/data`
+- Displays all Firestore members
+- No database writes
+- Cleaner larger cards and improved dashboard styling

@@ -7,7 +7,7 @@ import {
 import { loadTeaClub } from './services/firestore.js';
 import './style.css';
 
-const APP_VERSION = 'V6 FIRESTORE READ';
+const APP_VERSION = 'V6.1 FIRESTORE UI';
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const monthNames = {
   jan: 0, january: 0,
@@ -216,22 +216,63 @@ function Dashboard({ stats, dashboardRows, months, messages }) {
     <Stat title="Outstanding" value={toMoney(stats.due)} tone="orange" />
     <Stat title="Transactions" value={stats.transactions} />
     <div className="panel wide"><h2>Firestore dashboard snapshot</h2><table><thead><tr><th>Item</th><th>Value</th><th>Note</th></tr></thead><tbody>{dashboardRows.slice(0, 8).map((row, index) => <tr key={index}><td>{row.label || row.item || '-'}</td><td><b>{String(row.value ?? '')}</b></td><td>{row.note || ''}</td></tr>)}</tbody></table></div>
-    <div className="panel"><h2>System</h2><p className="alert good">✓ Connected to teaClub/main</p><p className="alert good">✓ Reading existing Firestore data</p><p className="alert">Next: v6.1 write-safe add member</p><p><b>Months:</b> {months.join(', ') || '-'}</p><p><b>Messages:</b> {messages.length}</p></div>
+    <div className="panel"><h2>System</h2><p className="alert good">✓ Connected to teaClub/main</p><p className="alert good">✓ Reading existing Firestore data</p><p className="alert">Next: v6.2 write-safe add member</p><p><b>Months:</b> {months.join(', ') || '-'}</p><p><b>Messages:</b> {messages.length}</p></div>
   </section>;
 }
 
 function Members({ members, total }) {
+  const activeCount = members.filter(member => !member.resigned).length;
+  const dueCount = members.filter(member => Number(member.due || 0) > 0).length;
+
   return <section>
-    <div className="topPanel"><div><h2>Members from Firestore</h2><p>{members.length} displayed of {total} loaded</p></div><button className="primary" disabled><Plus size={18}/>Add member in v6.1</button></div>
-    <div className="members">{members.map(member => <div className="member" key={member.id}>
-      <div className="avatar">{member.name?.[0] || '?'}</div>
-      <div className="memberHead"><h3>{member.name}</h3><span>{member.tag}</span></div>
-      <p>{member.note}</p>
-      <div className="memberMeta"><b>Monthly:</b> {toMoney(member.monthlyFee)}<b>Weekly:</b> {toMoney(member.weeklyFee)}<b>Outstanding:</b> {toMoney(member.due)}</div>
-      <div className="memberMeta"><b>Last paid week:</b> {member.lastPaidWeek}<b>Weekly status:</b> {member.weeklyStatus}</div>
-      <div className="months">{monthLabels.map((month, index) => <span key={month} className={member.paid.includes(index) ? 'paid' : index < 6 ? 'late' : 'future'}>{month}</span>)}</div>
-    </div>)}</div>
+    <div className="heroPanel membersHero">
+      <div>
+        <span className="eyebrow">Firestore live data</span>
+        <h2>Members</h2>
+        <p>{members.length} displayed of {total} loaded · {activeCount} active · {dueCount} with balance due</p>
+      </div>
+      <button className="primary" disabled><Plus size={18}/>Add member in v6.2</button>
+    </div>
+
+    <div className="members">{members.map(member => <MemberCard key={member.id} member={member} />)}</div>
   </section>;
+}
+
+function statusClass(member) {
+  const text = `${member.tag} ${member.weeklyStatus} ${member.note}`.toLowerCase();
+  if (member.resigned || text.includes('resign') || text.includes('left')) return 'left';
+  if (Number(member.due || 0) > 0 || text.includes('to pay') || text.includes('due')) return 'due';
+  if (text.includes('new')) return 'new';
+  if (text.includes('orange')) return 'warn';
+  return 'active';
+}
+
+function MemberCard({ member }) {
+  const status = statusClass(member);
+  const paidUntil = member.paid.length ? monthLabels[Math.max(...member.paid)] : '-';
+
+  return <article className={`member member-${status}`}>
+    <div className="memberTop">
+      <div className="avatar">{member.name?.[0] || '?'}</div>
+      <span className={`statusBadge ${status}`}>{member.tag}</span>
+    </div>
+    <h3>{member.name}</h3>
+    <p className="note">{member.note || 'No notes'}</p>
+
+    <div className="memberStats">
+      <div><span>Monthly</span><b>{toMoney(member.monthlyFee)}</b></div>
+      <div><span>Weekly</span><b>{toMoney(member.weeklyFee)}</b></div>
+      <div><span>Due</span><b className={member.due > 0 ? 'dueText' : 'okText'}>{toMoney(member.due)}</b></div>
+    </div>
+
+    <div className="miniInfo">
+      <span>Paid until <b>{paidUntil}</b></span>
+      <span>Last week <b>{member.lastPaidWeek}</b></span>
+      <span>Weekly <b>{member.weeklyStatus}</b></span>
+    </div>
+
+    <div className="months compactMonths">{monthLabels.map((month, index) => <span key={month} className={member.paid.includes(index) ? 'paid' : index < 6 ? 'late' : 'future'}>{month}</span>)}</div>
+  </article>;
 }
 
 function Transactions({ transactions }) {
