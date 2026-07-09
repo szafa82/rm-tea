@@ -1,5 +1,5 @@
 scripts:
-  buildCommand: npm run build
+  buildCommand: npm install && npm run build
   runCommand: npm run start
 
 outputFiles:
@@ -8,3 +8,4 @@ outputFiles:
       - dist
       - server.js
       - package.json
+      - node_modules
