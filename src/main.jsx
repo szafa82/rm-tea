@@ -54,11 +54,11 @@ function App() {
             console.log("Firestore:", firestore);
 
 if (firestore?.data?.members) {
-    setMembers(firestore.data.members);
+    // setMembers(firestore.data.members);
 }
 
 if (firestore?.data?.transactions) {
-    setTransactions(firestore.data.transactions);
+    // setTransactions(firestore.data.transactions);
 }
 
         } catch (err) {
