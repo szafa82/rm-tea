@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon,
-  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle
+  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle, X, Save
 } from 'lucide-react';
-import { loadTeaClub } from './services/firestore.js';
+import { loadTeaClub, saveMembersToTeaClub } from './services/firestore.js';
 import './style.css';
 
-const APP_VERSION = 'V6.1 FIRESTORE UI';
+const APP_VERSION = 'V6.2 ADD MEMBER FIRESTORE';
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const monthNames = {
   jan: 0, january: 0,
@@ -103,6 +103,8 @@ function App() {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('Loading Firestore...');
   const [error, setError] = useState('');
+  const [modal, setModal] = useState(null);
+  const [toast, setToast] = useState('');
   const [clubData, setClubData] = useState({
     members: [],
     transactions: [],
@@ -110,7 +112,9 @@ function App() {
     dashboardRows: [],
     messages: [],
     weekly: [],
-    transition: []
+    transition: [],
+    rawMembers: [],
+    raw: {}
   });
 
   async function refreshData() {
@@ -132,6 +136,7 @@ function App() {
         messages: Array.isArray(data.messages) ? data.messages : [],
         weekly: Array.isArray(data.weekly) ? data.weekly : [],
         transition: Array.isArray(data.transition) ? data.transition : [],
+        rawMembers: Array.isArray(data.members) ? data.members : [],
         raw: data,
         updatedAt: firestore?.updatedAt || null
       });
@@ -147,6 +152,64 @@ function App() {
   useEffect(() => {
     refreshData();
   }, []);
+
+
+  function notify(message) {
+    setToast(message);
+    window.clearTimeout(window.__rmTeaToast);
+    window.__rmTeaToast = window.setTimeout(() => setToast(''), 3000);
+  }
+
+  async function addMemberToFirestore(payload) {
+    const name = String(payload?.name || '').trim();
+    if (!name) {
+      notify('Name is required');
+      return false;
+    }
+
+    const exists = clubData.rawMembers.some(member => String(member.name || '').trim().toLowerCase() === name.toLowerCase());
+    if (exists) {
+      notify(`${name} already exists`);
+      return false;
+    }
+
+    try {
+      setStatus(`Saving ${name} to Firestore...`);
+      const newMember = {
+        id: Date.now(),
+        name,
+        category: payload.category || 'ACTIVE',
+        monthlyCategory: payload.category || 'ACTIVE',
+        status: 'active',
+        activeAuto: 'Y',
+        monthlyFee: Number(payload.monthlyFee || 5),
+        weeklyFee: Number(payload.weeklyFee || 1),
+        credit: 0,
+        oldDebt: 0,
+        monthlyOutstanding: 0,
+        monthsPaid: Array.isArray(payload.monthsPaid) ? payload.monthsPaid : [],
+        monthsPaidCount: Array.isArray(payload.monthsPaid) ? payload.monthsPaid.length : 0,
+        paidMonths: Array.isArray(payload.monthsPaid) ? payload.monthsPaid : [],
+        notes: payload.notes || '',
+        monthlyNotes: payload.notes || '',
+        weeklyStatus: 'OK',
+        lastPaidWeek: '-',
+        createdIn: 'v6.2'
+      };
+
+      const updatedMembers = [...clubData.rawMembers, newMember];
+      await saveMembersToTeaClub(updatedMembers);
+      setModal(null);
+      notify(`${name} added to Firestore`);
+      await refreshData();
+      return true;
+    } catch (err) {
+      console.error(err);
+      setError(err.message || String(err));
+      notify('Could not save member. Check Firestore rules.');
+      return false;
+    }
+  }
 
   const members = clubData.members;
   const transactions = clubData.transactions;
@@ -192,18 +255,22 @@ function App() {
         <div><span className="pill">{APP_VERSION}</span><h1>{active}</h1><p className={error ? 'status errorText' : 'status'}>{error || status}</p></div>
         <div className="search"><Search size={16}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search members, payments, notes..." /></div>
         <button className="icon"><Bell size={18}/><span></span></button>
-        <button className="primary" onClick={refreshData}><RefreshCw size={18}/>Refresh</button>
+        <button className="primary" onClick={() => setModal('addMember')}><Plus size={18}/>Add member</button>
+        <button className="secondary" onClick={refreshData}><RefreshCw size={18}/>Refresh</button>
       </header>
 
       {error && <section className="panel errorPanel"><AlertTriangle/><div><h2>Firestore error</h2><p>{error}</p></div></section>}
       {!error && active === 'Dashboard' && <Dashboard stats={stats} dashboardRows={clubData.dashboardRows} months={clubData.months} messages={clubData.messages} />}
-      {!error && active === 'Members' && <Members members={filteredMembers} total={members.length} />}
+      {!error && active === 'Members' && <Members members={filteredMembers} total={members.length} onAdd={() => setModal('addMember')} />}
       {!error && active === 'Transactions' && <Transactions transactions={transactions} />}
       {!error && active === 'Reports' && <Reports stats={stats} dashboardRows={clubData.dashboardRows} />}
       {!error && active === 'Stock' && <Stock />}
       {!error && active === 'Poster Studio' && <Poster members={members} />}
       {!error && active === 'Settings' && <Settings data={clubData} />}
     </main>
+
+    {modal === 'addMember' && <AddMemberModal onClose={() => setModal(null)} onSave={addMemberToFirestore} />}
+    {toast && <div className="toast">{toast}</div>}
   </div>;
 }
 
@@ -220,7 +287,7 @@ function Dashboard({ stats, dashboardRows, months, messages }) {
   </section>;
 }
 
-function Members({ members, total }) {
+function Members({ members, total, onAdd }) {
   const activeCount = members.filter(member => !member.resigned).length;
   const dueCount = members.filter(member => Number(member.due || 0) > 0).length;
 
@@ -231,7 +298,7 @@ function Members({ members, total }) {
         <h2>Members</h2>
         <p>{members.length} displayed of {total} loaded · {activeCount} active · {dueCount} with balance due</p>
       </div>
-      <button className="primary" disabled><Plus size={18}/>Add member in v6.2</button>
+      <button className="primary" onClick={onAdd}><Plus size={18}/>Add member</button>
     </div>
 
     <div className="members">{members.map(member => <MemberCard key={member.id} member={member} />)}</div>
@@ -285,7 +352,51 @@ function Reports({ stats, dashboardRows }) {
 
 function Stock(){ return <section className="stock"><StockItem name="Tea bags" qty="from v6.1" level="OK"/><StockItem name="Milk" qty="from transactions" level="LOW"/><StockItem name="Sugar" qty="from transactions" level="OK"/><StockItem name="Biscuits" qty="from transactions" level="OK"/></section>; }
 function Poster({ members }){ return <section className="poster"><div className="posterCard"><Coffee size={42}/><h1>RM Tea Club</h1><p>{members.filter(m => !m.resigned).length} active members</p><div>{members.filter(m => !m.resigned).slice(0, 50).map(member => <span key={member.id}>{member.name}</span>)}</div></div></section>; }
-function Settings({ data }){ return <section className="panel"><h2>Settings</h2><p><b>Mode:</b> Firestore read-only</p><p><b>Document:</b> teaClub/main</p><p><b>Members loaded:</b> {data.members.length}</p><p><b>Transactions loaded:</b> {data.transactions.length}</p><p><b>Weekly rows:</b> {data.weekly.length}</p><p><b>Transition rows:</b> {data.transition.length}</p></section>; }
+
+function AddMemberModal({ onClose, onSave }) {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('ACTIVE');
+  const [monthlyFee, setMonthlyFee] = useState('5');
+  const [weeklyFee, setWeeklyFee] = useState('1');
+  const [notes, setNotes] = useState('');
+  const [monthsPaid, setMonthsPaid] = useState(['2026-07']);
+  const [saving, setSaving] = useState(false);
+
+  function toggleMonth(month) {
+    setMonthsPaid(prev => prev.includes(month) ? prev.filter(item => item !== month) : [...prev, month].sort());
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    const ok = await onSave({ name, category, monthlyFee, weeklyFee, notes, monthsPaid });
+    if (!ok) setSaving(false);
+  }
+
+  const monthValues = monthLabels.map((label, index) => `2026-${String(index + 1).padStart(2, '0')}`);
+
+  return <div className="modal" onClick={onClose}>
+    <form className="modalCard" onClick={event => event.stopPropagation()} onSubmit={submit}>
+      <button type="button" className="close" onClick={onClose}><X size={18}/></button>
+      <h2>Add member to Firestore</h2>
+      <p className="muted">This writes to <b>teaClub/main/data.members</b>. Make sure Firestore write rule is enabled for testing.</p>
+
+      <label>Name<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Siju" /></label>
+      <label>Category<select value={category} onChange={event => setCategory(event.target.value)}><option>ACTIVE</option><option>ACTIVE - new member</option><option>ORANGE - email not found</option><option>RED - left/resigned</option></select></label>
+      <div className="formGrid">
+        <label>Monthly fee<input value={monthlyFee} onChange={event => setMonthlyFee(event.target.value)} /></label>
+        <label>Weekly fee<input value={weeklyFee} onChange={event => setWeeklyFee(event.target.value)} /></label>
+      </div>
+      <label>Notes<input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Optional note" /></label>
+
+      <div className="monthPicker"><p>Months paid</p>{monthValues.map((value, index) => <button type="button" key={value} onClick={() => toggleMonth(value)} className={monthsPaid.includes(value) ? 'paid' : 'future'}>{monthLabels[index]}</button>)}</div>
+
+      <div className="modalActions"><button type="button" onClick={onClose}>Cancel</button><button className="primary" type="submit" disabled={saving}><Save size={16}/>{saving ? 'Saving...' : 'Save member'}</button></div>
+    </form>
+  </div>;
+}
+
+function Settings({ data }){ return <section className="panel"><h2>Settings</h2><p><b>Mode:</b> Firestore read/write for members</p><p><b>Document:</b> teaClub/main</p><p><b>Members loaded:</b> {data.members.length}</p><p><b>v6.2:</b> Add member writes to teaClub/main/data.members</p><p><b>Transactions loaded:</b> {data.transactions.length}</p><p><b>Weekly rows:</b> {data.weekly.length}</p><p><b>Transition rows:</b> {data.transition.length}</p></section>; }
 function Stat({ title, value, tone }){ return <div className={`stat ${tone || ''}`}><span>{title}</span><b>{value}</b></div>; }
 function StockItem({ name, qty, level }){ return <div className="stockItem"><h3>{name}</h3><p>{qty}</p><span className={level === 'LOW' ? 'low' : 'ok'}>{level}</span></div>; }
 

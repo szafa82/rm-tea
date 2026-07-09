@@ -1,4 +1,4 @@
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase.js";
 
 export async function loadTeaClub() {
@@ -10,4 +10,12 @@ export async function loadTeaClub() {
   }
 
   return snap.data();
+}
+
+export async function saveMembersToTeaClub(members) {
+  const ref = doc(db, "teaClub", "main");
+  await updateDoc(ref, {
+    "data.members": members,
+    updatedAt: serverTimestamp()
+  });
 }
