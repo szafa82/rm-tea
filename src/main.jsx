@@ -137,6 +137,7 @@ function normalizeTransaction(tx, index) {
 function App() {
   const [active, setActive] = useState('Members');
   const [query, setQuery] = useState('');
+  const [hideLeftMembers, setHideLeftMembers] = useState(false);
   const [status, setStatus] = useState('Loading Firestore...');
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
