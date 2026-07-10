@@ -388,7 +388,14 @@ const filteredMembers = members
 
       {error && <section className="panel errorPanel"><AlertTriangle/><div><h2>Firestore error</h2><p>{error}</p></div></section>}
       {!error && active === 'Dashboard' && <Dashboard stats={stats} dashboardRows={clubData.dashboardRows} months={clubData.months} messages={clubData.messages} />}
-      {!error && active === 'Members' && <Members members={filteredMembers} total={members.length} onAdd={() => setModal('addMember')} onMonthChange={updateMemberMonthStatus} />}
+      {!error && active === 'Members' && <Members
+  members={filteredMembers}
+  total={members.length}
+  onAdd={() => setModal('addMember')}
+  onMonthChange={updateMemberMonthStatus}
+  hideLeftMembers={hideLeftMembers}
+  onToggleHideLeft={() => setHideLeftMembers(value => !value)}
+/>
       {!error && active === 'Transactions' && <Transactions transactions={transactions} onAddPayment={() => setModal({ type: 'addTransaction', kind: 'Payment' })} onAddExpense={() => setModal({ type: 'addTransaction', kind: 'Expense' })} />}
       {!error && active === 'Reports' && <Reports stats={stats} dashboardRows={clubData.dashboardRows} />}
       {!error && active === 'Stock' && <Stock />}
@@ -415,7 +422,14 @@ function Dashboard({ stats, dashboardRows, months, messages }) {
   </section>;
 }
 
-function Members({ members, total, onAdd, onMonthChange }) {
+function Members({
+  members,
+  total,
+  onAdd,
+  onMonthChange,
+  hideLeftMembers,
+  onToggleHideLeft
+}) {
   const [allOpen, setAllOpen] = useState(false);
   const activeCount = members.filter(member => !member.resigned).length;
   const overdueCount = members.filter(member => (member.counts?.overdue || 0) > 0).length;
@@ -427,13 +441,32 @@ function Members({ members, total, onAdd, onMonthChange }) {
         <h2>Members</h2>
         <p>{members.length} displayed of {total} loaded · {activeCount} active · {overdueCount} with overdue months</p>
       </div>
+
       <div className="panelActions">
-        <button className="secondary" onClick={() => setAllOpen(v => !v)}>{allOpen ? 'Collapse all' : 'Expand all'}</button>
-        <button className="primary" onClick={onAdd}><Plus size={18}/>Add member</button>
+        <button className="secondary" onClick={onToggleHideLeft}>
+          {hideLeftMembers ? 'Show left members' : 'Hide left members'}
+        </button>
+
+        <button className="secondary" onClick={() => setAllOpen(v => !v)}>
+          {allOpen ? 'Collapse all' : 'Expand all'}
+        </button>
+
+        <button className="primary" onClick={onAdd}>
+          <Plus size={18}/>Add member
+        </button>
       </div>
     </div>
 
-    <div className="members">{members.map(member => <MemberCard key={member.id} member={member} forceOpen={allOpen} onMonthChange={onMonthChange} />)}</div>
+    <div className="members">
+      {members.map(member => (
+        <MemberCard
+          key={member.id}
+          member={member}
+          forceOpen={allOpen}
+          onMonthChange={onMonthChange}
+        />
+      ))}
+    </div>
   </section>;
 }
 
