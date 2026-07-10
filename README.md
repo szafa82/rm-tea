@@ -1,12 +1,28 @@
-# RM Tea Club Manager v6.3
+# RM Tea Club Manager v6.4
 
-Adds Firestore transaction writing.
+## Live features
 
-## New in v6.3
-- Add Payment button
-- Add Expense button
-- Saves to `teaClub/main/data.transactions`
-- Members are sorted A-Z after loading/adding
-- Existing Firestore data is preserved
+- ✅ Firestore read/write
+- ✅ Members
+- ✅ Transactions
+- ✅ Add Member
+- ✅ Add Payment
+- ✅ Add Expense
+- ✅ Dashboard
+- ✅ Reports
+- ✅ Stock
+- ✅ Poster Studio
+- ✅ Settings
 
-Firestore rules need temporary write access during testing.
+## Current branch
+
+feature-hide-left-members
+
+## Next features
+
+- ⏳ Hide resigned members
+- ⏳ Edit member
+- ⏳ Delete member
+- ⏳ Monthly automatic rollover
+- ⏳ Export reports
+- ⏳ Transaction editing
