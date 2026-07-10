@@ -388,14 +388,16 @@ const filteredMembers = members
 
       {error && <section className="panel errorPanel"><AlertTriangle/><div><h2>Firestore error</h2><p>{error}</p></div></section>}
       {!error && active === 'Dashboard' && <Dashboard stats={stats} dashboardRows={clubData.dashboardRows} months={clubData.months} messages={clubData.messages} />}
-      {!error && active === 'Members' && <Members
-  members={filteredMembers}
-  total={members.length}
-  onAdd={() => setModal('addMember')}
-  onMonthChange={updateMemberMonthStatus}
-  hideLeftMembers={hideLeftMembers}
-  onToggleHideLeft={() => setHideLeftMembers(value => !value)}
-/>
+    {!error && active === 'Members' && (
+  <Members
+    members={filteredMembers}
+    total={members.length}
+    onAdd={() => setModal('addMember')}
+    onMonthChange={updateMemberMonthStatus}
+    hideLeftMembers={hideLeftMembers}
+    onToggleHideLeft={() => setHideLeftMembers(value => !value)}
+  />
+)}
       {!error && active === 'Transactions' && <Transactions transactions={transactions} onAddPayment={() => setModal({ type: 'addTransaction', kind: 'Payment' })} onAddExpense={() => setModal({ type: 'addTransaction', kind: 'Expense' })} />}
       {!error && active === 'Reports' && <Reports stats={stats} dashboardRows={clubData.dashboardRows} />}
       {!error && active === 'Stock' && <Stock />}
