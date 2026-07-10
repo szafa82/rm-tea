@@ -350,7 +350,9 @@ function App() {
 
   const members = clubData.members;
   const transactions = clubData.transactions;
-  const filteredMembers = members.filter(member =>
+const filteredMembers = members
+  .filter(member => !hideLeftMembers || !member.resigned)
+  .filter(member => [member.name, member.tag, member.note, member.weeklyStatus].join(' ').toLowerCase().includes(query.toLowerCase()));
     [member.name, member.tag, member.note, member.weeklyStatus].join(' ').toLowerCase().includes(query.toLowerCase())
   );
 
