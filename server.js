@@ -7,11 +7,42 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 8080;
+const distPath = path.join(__dirname, "dist");
 
-app.use(express.static(path.join(__dirname, "dist")));
+// Pliki z nazwą zawierającą hash mogą być długo przechowywane.
+app.use(
+  "/assets",
+  express.static(path.join(distPath, "assets"), {
+    immutable: true,
+    maxAge: "1y"
+  })
+);
 
+// Pozostałe pliki statyczne.
+app.use(
+  express.static(distPath, {
+    index: false,
+    etag: true,
+    maxAge: 0
+  })
+);
+
+// Index zawsze ma być pobierany na nowo po deployu.
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "dist", "index.html"));
+  // Nie zwracamy index.html dla brakujących plików JS/CSS.
+  if (req.path.startsWith("/assets/")) {
+    return res.status(404).send("Asset not found");
+  }
+
+  res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate"
+  );
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  res.setHeader("Surrogate-Control", "no-store");
+
+  return res.sendFile(path.join(distPath, "index.html"));
 });
 
 app.listen(port, "0.0.0.0", () => {
