@@ -353,8 +353,6 @@ function App() {
 const filteredMembers = members
   .filter(member => !hideLeftMembers || !member.resigned)
   .filter(member => [member.name, member.tag, member.note, member.weeklyStatus].join(' ').toLowerCase().includes(query.toLowerCase()));
-    [member.name, member.tag, member.note, member.weeklyStatus].join(' ').toLowerCase().includes(query.toLowerCase())
-  );
 
   const stats = useMemo(() => {
     const income = transactions.filter(t => Number(t.amount) > 0).reduce((sum, tx) => sum + Number(tx.amount), 0);
