@@ -39,3 +39,9 @@
   .memberIdentity h3{font-size:21px}
   .memberRight{gap:6px}
 }
+
+
+/* v6.5 member editing */
+.memberEditRow{display:flex;justify-content:flex-end;margin:0 0 12px}
+.editMemberButton{border:1px solid #dbe2ea;background:#fff;color:#0f172a;border-radius:12px;padding:9px 13px;font-weight:900;display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+.editMemberButton:hover{background:#f8fafc;transform:translateY(-1px)}

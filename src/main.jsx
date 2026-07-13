@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon,
-  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle, X, Save, ChevronDown, ChevronRight
+  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle, X, Save, ChevronDown, ChevronRight, Pencil
 } from 'lucide-react';
 import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub } from './services/firestore.js';
 import './style.css';
 
-const APP_VERSION = 'V6.4 MEMBERS + TRANSACTIONS';
+const APP_VERSION = 'V6.5 MEMBER EDITING';
 const YEAR = 2026;
 const START_MONTH_INDEX = 6; // July 2026
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -277,6 +277,62 @@ function App() {
     }
   }
 
+  async function editMemberInFirestore(payload) {
+    const originalId = payload?.originalId;
+    const originalName = String(payload?.originalName || '').trim();
+    const name = String(payload?.name || '').trim();
+
+    if (!name) {
+      notify('Name is required');
+      return false;
+    }
+
+    const duplicate = clubData.rawMembers.some(raw => {
+      const sameMember = String(raw.id ?? '') === String(originalId ?? '') ||
+        (!originalId && String(raw.name || '').trim().toLowerCase() === originalName.toLowerCase());
+      return !sameMember && String(raw.name || '').trim().toLowerCase() === name.toLowerCase();
+    });
+
+    if (duplicate) {
+      notify(`${name} already exists`);
+      return false;
+    }
+
+    try {
+      setStatus(`Saving changes for ${name}...`);
+      const category = payload.category || 'ACTIVE';
+      const left = String(category).toLowerCase().includes('left') || String(category).toLowerCase().includes('resign');
+
+      const updatedMembers = clubData.rawMembers.map(raw => {
+        const sameMember = String(raw.id ?? '') === String(originalId ?? '') ||
+          (!originalId && String(raw.name || '').trim().toLowerCase() === originalName.toLowerCase());
+        if (!sameMember) return raw;
+
+        return {
+          ...raw,
+          name,
+          category,
+          monthlyCategory: category,
+          status: left ? 'left' : 'active',
+          activeAuto: left ? 'N' : 'Y',
+          monthlyFee: Number(payload.monthlyFee || 5),
+          notes: payload.notes || '',
+          monthlyNotes: payload.notes || '',
+          updatedIn: 'v6.5-member-edit'
+        };
+      });
+
+      await saveUpdatedMembers(updatedMembers, `${name} updated`);
+      setModal(null);
+      return true;
+    } catch (err) {
+      console.error(err);
+      setError(err.message || String(err));
+      notify('Could not update member. Check Firestore rules.');
+      return false;
+    }
+  }
+
   async function addTransactionToFirestore(payload) {
     const amountInput = Number(payload?.amount || 0);
     if (!amountInput) return notify('Amount is required'), false;
@@ -394,6 +450,7 @@ const filteredMembers = members
     total={members.length}
     onAdd={() => setModal('addMember')}
     onMonthChange={updateMemberMonthStatus}
+    onEdit={member => setModal({ type: 'editMember', member })}
     hideLeftMembers={hideLeftMembers}
     onToggleHideLeft={() => setHideLeftMembers(value => !value)}
   />
@@ -406,6 +463,7 @@ const filteredMembers = members
     </main>
 
     {modal === 'addMember' && <AddMemberModal onClose={() => setModal(null)} onSave={addMemberToFirestore} />}
+    {modal?.type === 'editMember' && <EditMemberModal member={modal.member} onClose={() => setModal(null)} onSave={editMemberInFirestore} />}
     {modal?.type === 'addTransaction' && <AddTransactionModal kind={modal.kind} members={members} onClose={() => setModal(null)} onSave={addTransactionToFirestore} />}
     {toast && <div className="toast">{toast}</div>}
   </div>;
@@ -429,6 +487,7 @@ function Members({
   total,
   onAdd,
   onMonthChange,
+  onEdit,
   hideLeftMembers,
   onToggleHideLeft
 }) {
@@ -466,6 +525,7 @@ function Members({
           member={member}
           forceOpen={allOpen}
           onMonthChange={onMonthChange}
+          onEdit={onEdit}
         />
       ))}
     </div>
@@ -488,7 +548,7 @@ function nextManualStatus(current) {
   return 'paid';
 }
 
-function MemberCard({ member, forceOpen, onMonthChange }) {
+function MemberCard({ member, forceOpen, onMonthChange, onEdit }) {
   const [localOpen, setLocalOpen] = useState(false);
   const open = forceOpen || localOpen;
   const status = memberOverallStatus(member);
@@ -511,6 +571,11 @@ function MemberCard({ member, forceOpen, onMonthChange }) {
     </button>
 
     {open && <div className="memberDetails">
+      <div className="memberEditRow">
+        <button type="button" className="editMemberButton" onClick={() => onEdit(member)}>
+          <Pencil size={16}/> Edit member
+        </button>
+      </div>
       <p className="note">{member.note || 'No notes'}</p>
 
       <div className="memberStats">
@@ -610,6 +675,51 @@ function AddMemberModal({ onClose, onSave }) {
       <div className="monthPicker"><p>Months paid</p>{monthValues.map((value, index) => <button type="button" key={value} disabled={index < START_MONTH_INDEX} onClick={() => toggleMonth(value)} className={index < START_MONTH_INDEX ? 'inactive' : monthsPaid.includes(value) ? 'paid' : 'future'}>{monthLabels[index]}</button>)}</div>
 
       <div className="modalActions"><button type="button" onClick={onClose}>Cancel</button><button className="primary" type="submit" disabled={saving}><Save size={16}/>{saving ? 'Saving...' : 'Save member'}</button></div>
+    </form>
+  </div>;
+}
+
+function EditMemberModal({ member, onClose, onSave }) {
+  const [name, setName] = useState(member.name || '');
+  const [category, setCategory] = useState(member.resigned ? 'RED - left/resigned' : (member.raw?.monthlyCategory || member.raw?.category || 'ACTIVE'));
+  const [monthlyFee, setMonthlyFee] = useState(String(member.monthlyFee || 5));
+  const [notes, setNotes] = useState(member.raw?.notes || member.raw?.monthlyNotes || member.note || '');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    const ok = await onSave({
+      originalId: member.raw?.id ?? member.id,
+      originalName: member.name,
+      name,
+      category,
+      monthlyFee,
+      notes
+    });
+    if (!ok) setSaving(false);
+  }
+
+  return <div className="modal" onClick={onClose}>
+    <form className="modalCard" onClick={event => event.stopPropagation()} onSubmit={submit}>
+      <button type="button" className="close" onClick={onClose}><X size={18}/></button>
+      <h2>Edit member</h2>
+      <p className="muted">Change details or mark the member as left/resigned.</p>
+
+      <label>Name<input autoFocus value={name} onChange={event => setName(event.target.value)} /></label>
+      <label>Status<select value={category} onChange={event => setCategory(event.target.value)}>
+        <option>ACTIVE</option>
+        <option>ACTIVE - new member</option>
+        <option>ORANGE - email not found</option>
+        <option>RED - left/resigned</option>
+      </select></label>
+      <label>Monthly fee<input type="number" min="0" step="0.01" value={monthlyFee} onChange={event => setMonthlyFee(event.target.value)} /></label>
+      <label>Notes<input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Optional note" /></label>
+
+      <div className="modalActions">
+        <button type="button" onClick={onClose}>Cancel</button>
+        <button className="primary" type="submit" disabled={saving}><Save size={16}/>{saving ? 'Saving...' : 'Save changes'}</button>
+      </div>
     </form>
   </div>;
 }
