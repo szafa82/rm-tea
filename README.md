@@ -1,28 +1,18 @@
-# RM Tea Club Manager v6.4
+# RM Tea Club Manager v6.5
 
 ## Live features
 
-- ✅ Firestore read/write
-- ✅ Members
-- ✅ Transactions
-- ✅ Add Member
-- ✅ Add Payment
-- ✅ Add Expense
-- ✅ Dashboard
-- ✅ Reports
-- ✅ Stock
-- ✅ Poster Studio
-- ✅ Settings
+- Firestore read/write
+- Members and monthly status tracking
+- Add and edit members
+- Mark members as left/resigned
+- Hide/show resigned members
+- Transactions, payments and expenses
+- Dashboard, reports, stock and poster studio
 
-## Current branch
+## v6.5
 
-feature-hide-left-members
-
-## Next features
-
-- ⏳ Hide resigned members
-- ⏳ Edit member
-- ⏳ Delete member
-- ⏳ Monthly automatic rollover
-- ⏳ Export reports
-- ⏳ Transaction editing
+- Added **Edit member** button inside each expanded member card
+- Edit name, status, monthly fee and notes
+- Status **RED - left/resigned** automatically marks the member as left
+- Existing payment months and transaction data are preserved
