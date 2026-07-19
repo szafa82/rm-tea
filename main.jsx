@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon,
-  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle, X, Save, ChevronDown, ChevronRight, Pencil
+  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle, X, Save, ChevronDown, ChevronRight, Pencil, Trash2, FileDown
 } from 'lucide-react';
 import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub } from './services/firestore.js';
 import './style.css';
 import PosterStudio from './components/PosterStudio.jsx';
 
-const APP_VERSION = 'V7 MONTHLY ONLY';
+const APP_VERSION = 'V8 COMPLETE MONTHLY';
 const YEAR = 2026;
 const START_MONTH_INDEX = 6; // July 2026
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -21,6 +21,38 @@ const monthNames = {
 function toMoney(value) {
   const number = Number(value || 0);
   return `£${number.toFixed(2)}`;
+}
+
+function loadLocal(key, fallback) {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveLocal(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore unavailable local storage.
+  }
+}
+
+function downloadTextFile(filename, content, type = 'text/plain;charset=utf-8') {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvEscape(value) {
+  const text = String(value ?? '');
+  return `"${text.replaceAll('"', '""')}"`;
 }
 
 function monthKey(index) {
@@ -108,7 +140,7 @@ function normalizeMember(member, index) {
   };
   const counts = getMonthCounts(base);
   const monthDebt = (counts.overdue || 0) * base.monthlyFee + (counts.due || 0) * base.monthlyFee;
-  base.due = Math.max(0, monthlyOutstanding + oldDebt + monthDebt - credit);
+  base.due = Math.max(0, monthlyOutstanding + monthDebt - credit);
   base.counts = counts;
   return base;
 }
@@ -146,6 +178,21 @@ function App() {
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState('');
+  const [posterSettings, setPosterSettings] = useState(() => loadLocal('rmTea.posterSettings', {
+    clubName: 'TEA CLUB',
+    contactName: 'Adam Szafarczyk',
+    phone: '07462 879010',
+    email: 'adam.szafarczyk@royalmail.com',
+    monthlyFee: 5,
+    drinks: ['Milk available', 'Hot chocolate', 'Tea', 'Decaf tea', 'Coffee', 'Decaf coffee']
+  }));
+  const [stockItems, setStockItems] = useState(() => loadLocal('rmTea.stockItems', [
+    { id: 1, name: 'Tea bags', quantity: 100, minimum: 30, unit: 'bags' },
+    { id: 2, name: 'Coffee', quantity: 2, minimum: 1, unit: 'jars' },
+    { id: 3, name: 'Hot chocolate', quantity: 1, minimum: 1, unit: 'tubs' },
+    { id: 4, name: 'Sugar', quantity: 2, minimum: 1, unit: 'bags' },
+    { id: 5, name: 'Milk', quantity: 4, minimum: 2, unit: 'bottles' }
+  ]));
   const [clubData, setClubData] = useState({
     members: [], transactions: [], months: [], dashboardRows: [], messages: [], rawMembers: [], raw: {}
   });
@@ -190,6 +237,9 @@ function App() {
       // Local storage can be unavailable in private/restricted browsing.
     }
   }, [hideLeftMembers]);
+
+  useEffect(() => saveLocal('rmTea.posterSettings', posterSettings), [posterSettings]);
+  useEffect(() => saveLocal('rmTea.stockItems', stockItems), [stockItems]);
 
   function notify(message) {
     setToast(message);
@@ -411,6 +461,64 @@ function App() {
     }
   }
 
+
+  async function editTransactionInFirestore(payload) {
+    const amountInput = Number(payload?.amount || 0);
+    if (!amountInput) return notify('Amount is required'), false;
+
+    const type = payload.type || 'Payment';
+    const amount = type === 'Expense' ? -Math.abs(amountInput) : Math.abs(amountInput);
+
+    try {
+      setStatus('Updating transaction...');
+      const updatedTransactions = (clubData.raw?.transactions || []).map(raw => {
+        if (String(raw.id || raw.ref) !== String(payload.id)) return raw;
+        return {
+          ...raw,
+          date: payload.date,
+          type,
+          member: type === 'Expense' ? 'Tea Club' : payload.member,
+          name: type === 'Expense' ? 'Tea Club' : payload.member,
+          months: type === 'Expense' ? [] : payload.months,
+          category: payload.category,
+          description: payload.description,
+          amount,
+          income: amount > 0 ? amount : 0,
+          expense: amount < 0 ? Math.abs(amount) : 0,
+          updatedIn: 'v8-complete-monthly'
+        };
+      });
+
+      await saveTransactionsToTeaClub(updatedTransactions);
+      setModal(null);
+      notify('Transaction updated');
+      await refreshData();
+      return true;
+    } catch (err) {
+      console.error(err);
+      notify('Could not update transaction');
+      return false;
+    }
+  }
+
+  async function deleteTransactionFromFirestore(transaction) {
+    const confirmed = window.confirm(`Delete transaction ${transaction.id}?`);
+    if (!confirmed) return;
+
+    try {
+      setStatus('Deleting transaction...');
+      const updatedTransactions = (clubData.raw?.transactions || []).filter(
+        raw => String(raw.id || raw.ref) !== String(transaction.id)
+      );
+      await saveTransactionsToTeaClub(updatedTransactions);
+      notify('Transaction deleted');
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      notify('Could not delete transaction');
+    }
+  }
+
   const members = clubData.members;
   const transactions = clubData.transactions;
 const filteredMembers = members
@@ -462,16 +570,23 @@ const filteredMembers = members
     onToggleHideLeft={() => setHideLeftMembers(value => !value)}
   />
 )}
-      {!error && active === 'Transactions' && <Transactions transactions={transactions} onAddPayment={() => setModal({ type: 'addTransaction', kind: 'Payment' })} onAddExpense={() => setModal({ type: 'addTransaction', kind: 'Expense' })} />}
-      {!error && active === 'Reports' && <Reports stats={stats} dashboardRows={clubData.dashboardRows} />}
-      {!error && active === 'Stock' && <Stock />}
-      {!error && active === 'Poster Studio' && <PosterStudio members={members} />}
-      {!error && active === 'Settings' && <Settings data={clubData} />}
+      {!error && active === 'Transactions' && <Transactions
+        transactions={transactions}
+        onAddPayment={() => setModal({ type: 'addTransaction', kind: 'Payment' })}
+        onAddExpense={() => setModal({ type: 'addTransaction', kind: 'Expense' })}
+        onEdit={transaction => setModal({ type: 'editTransaction', transaction })}
+        onDelete={deleteTransactionFromFirestore}
+      />}
+      {!error && active === 'Reports' && <Reports stats={stats} transactions={transactions} members={members} />}
+      {!error && active === 'Stock' && <Stock items={stockItems} onChange={setStockItems} />}
+      {!error && active === 'Poster Studio' && <PosterStudio members={members} settings={posterSettings} />}
+      {!error && active === 'Settings' && <Settings data={clubData} settings={posterSettings} onChange={setPosterSettings} />}
     </main>
 
     {modal === 'addMember' && <AddMemberModal onClose={() => setModal(null)} onSave={addMemberToFirestore} />}
     {modal?.type === 'editMember' && <EditMemberModal member={modal.member} onClose={() => setModal(null)} onSave={editMemberInFirestore} />}
     {modal?.type === 'addTransaction' && <AddTransactionModal kind={modal.kind} members={members} onClose={() => setModal(null)} onSave={addTransactionToFirestore} />}
+    {modal?.type === 'editTransaction' && <EditTransactionModal transaction={modal.transaction} members={members} onClose={() => setModal(null)} onSave={editTransactionInFirestore} />}
     {toast && <div className="toast">{toast}</div>}
   </div>;
 }
@@ -616,32 +731,148 @@ function MemberCard({ member, forceOpen, onMonthChange, onEdit }) {
   </article>;
 }
 
-function Transactions({ transactions, onAddPayment, onAddExpense }) {
+function Transactions({ transactions, onAddPayment, onAddExpense, onEdit, onDelete }) {
+  const [filter, setFilter] = useState('');
+  const visible = transactions.filter(tx =>
+    [tx.id, tx.date, tx.type, tx.member, tx.description, tx.category]
+      .join(' ')
+      .toLowerCase()
+      .includes(filter.toLowerCase())
+  );
+
   return <section className="panel">
     <div className="panelTitle">
-      <h2>Transactions from Firestore</h2>
+      <div>
+        <h2>Transactions</h2>
+        <p className="muted">{visible.length} displayed of {transactions.length}</p>
+      </div>
       <div className="panelActions">
+        <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter transactions..." />
         <button className="primary" onClick={onAddPayment}>Add payment</button>
         <button className="secondary" onClick={onAddExpense}>Add expense</button>
-        <span>{transactions.length} loaded</span>
       </div>
     </div>
     <table>
-      <thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Member</th><th>Months</th><th>Description</th><th>Amount</th></tr></thead>
-      <tbody>{transactions.map((tx, index) => <tr key={`${tx.id}-${index}`}>
-        <td>{tx.id}</td><td>{String(tx.date)}</td><td>{tx.type}</td><td>{tx.member}</td>
+      <thead><tr><th>Date</th><th>Type</th><th>Member</th><th>Months</th><th>Description</th><th>Amount</th><th>Actions</th></tr></thead>
+      <tbody>{visible.map((tx, index) => <tr key={`${tx.id}-${index}`}>
+        <td>{String(tx.date)}</td>
+        <td>{tx.type}</td>
+        <td>{tx.member}</td>
         <td>{tx.months?.length ? tx.months.join(', ') : '-'}</td>
-        <td>{tx.description}</td><td className={Number(tx.amount) >= 0 ? 'money' : 'cost'}>{Number(tx.amount) >= 0 ? '+' : ''}{toMoney(tx.amount)}</td>
+        <td>{tx.description}</td>
+        <td className={Number(tx.amount) >= 0 ? 'money' : 'cost'}>{Number(tx.amount) >= 0 ? '+' : ''}{toMoney(tx.amount)}</td>
+        <td>
+          <div className="rowActions">
+            <button className="iconAction" onClick={() => onEdit(tx)} title="Edit"><Pencil size={15}/></button>
+            <button className="iconAction danger" onClick={() => onDelete(tx)} title="Delete"><Trash2 size={15}/></button>
+          </div>
+        </td>
       </tr>)}</tbody>
     </table>
   </section>;
 }
 
-function Reports({ stats, dashboardRows }) {
-  return <section className="grid"><div className="panel wide"><h2>Reports read-only</h2><div className="filters"><input type="date"/><input type="date"/><select><option>Sort by date</option><option>Sort by amount</option><option>Sort by member</option></select><button className="primary"><Download size={16}/>Export later</button></div><p>Total income: <b>{toMoney(stats.income)}</b></p><p>Total spent: <b>{toMoney(stats.spent)}</b></p><p>Outstanding: <b>{toMoney(stats.due)}</b></p><p>Dashboard rows loaded: <b>{dashboardRows.length}</b></p></div></section>;
+function Reports({ stats, transactions, members }) {
+  const [month, setMonth] = useState(monthKey(new Date().getMonth()));
+  const monthTransactions = transactions.filter(tx =>
+    String(tx.date || '').startsWith(month) || (tx.months || []).includes(month)
+  );
+  const monthIncome = monthTransactions.filter(tx => tx.amount > 0).reduce((sum, tx) => sum + tx.amount, 0);
+  const monthSpent = Math.abs(monthTransactions.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0));
+  const monthIndex = monthToIndex(month);
+  const paidMembers = members.filter(member => getMonthStatus(member, monthIndex) === 'paid');
+  const unpaidMembers = members.filter(member => !member.resigned && ['due', 'overdue'].includes(getMonthStatus(member, monthIndex)));
+
+  function exportCsv() {
+    const rows = [
+      ['Report month', month],
+      ['Income', monthIncome],
+      ['Expenses', monthSpent],
+      ['Balance', monthIncome - monthSpent],
+      [],
+      ['Paid members'],
+      ...paidMembers.map(member => [member.name]),
+      [],
+      ['Outstanding members'],
+      ...unpaidMembers.map(member => [member.name, member.monthlyFee])
+    ];
+    downloadTextFile(`tea-club-report-${month}.csv`, rows.map(row => row.map(csvEscape).join(',')).join('
+'), 'text/csv;charset=utf-8');
+  }
+
+  return <section className="grid">
+    <Stat title="Month income" value={toMoney(monthIncome)} tone="green" />
+    <Stat title="Month expenses" value={toMoney(monthSpent)} tone="red" />
+    <Stat title="Month balance" value={toMoney(monthIncome - monthSpent)} tone={monthIncome - monthSpent >= 0 ? 'green' : 'red'} />
+    <Stat title="Paid members" value={paidMembers.length} />
+    <Stat title="Outstanding members" value={unpaidMembers.length} tone="orange" />
+
+    <div className="panel wide">
+      <div className="panelTitle">
+        <div><h2>Monthly report</h2><p className="muted">Monthly-only membership report</p></div>
+        <div className="panelActions">
+          <input type="month" value={month} onChange={e => setMonth(e.target.value)} />
+          <button className="primary" onClick={exportCsv}><FileDown size={16}/>Export CSV</button>
+        </div>
+      </div>
+      <div className="reportColumns">
+        <div><h3>Paid ({paidMembers.length})</h3>{paidMembers.map(member => <p key={member.id}>✓ {member.name}</p>)}</div>
+        <div><h3>Outstanding ({unpaidMembers.length})</h3>{unpaidMembers.map(member => <p key={member.id}>⚠ {member.name} — {toMoney(member.monthlyFee)}</p>)}</div>
+      </div>
+    </div>
+  </section>;
 }
 
-function Stock(){ return <section className="stock"><StockItem name="Tea bags" qty="from v6.1" level="OK"/><StockItem name="Milk" qty="from transactions" level="LOW"/><StockItem name="Sugar" qty="from transactions" level="OK"/><StockItem name="Biscuits" qty="from transactions" level="OK"/></section>; }
+function Stock({ items, onChange }) {
+  const [name, setName] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [minimum, setMinimum] = useState('1');
+  const [unit, setUnit] = useState('items');
+
+  function addItem(event) {
+    event.preventDefault();
+    if (!name.trim()) return;
+    onChange([...items, { id: Date.now(), name: name.trim(), quantity: Number(quantity), minimum: Number(minimum), unit }]);
+    setName('');
+  }
+
+  function updateItem(id, changes) {
+    onChange(items.map(item => item.id === id ? { ...item, ...changes } : item));
+  }
+
+  function removeItem(id) {
+    onChange(items.filter(item => item.id !== id));
+  }
+
+  return <section>
+    <div className="heroPanel">
+      <div><span className="eyebrow">Local stock register</span><h2>Stock</h2><p>Low-stock items are highlighted automatically.</p></div>
+    </div>
+
+    <form className="panel stockForm" onSubmit={addItem}>
+      <input value={name} onChange={e => setName(e.target.value)} placeholder="Product name" />
+      <input type="number" min="0" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="Quantity" />
+      <input type="number" min="0" value={minimum} onChange={e => setMinimum(e.target.value)} placeholder="Minimum" />
+      <input value={unit} onChange={e => setUnit(e.target.value)} placeholder="Unit" />
+      <button className="primary" type="submit"><Plus size={16}/>Add product</button>
+    </form>
+
+    <div className="stock">
+      {items.map(item => {
+        const low = Number(item.quantity) <= Number(item.minimum);
+        return <div className="stockItem" key={item.id}>
+          <div className="panelTitle"><h3>{item.name}</h3><button className="iconAction danger" onClick={() => removeItem(item.id)}><Trash2 size={15}/></button></div>
+          <p>{item.quantity} {item.unit}</p>
+          <span className={low ? 'low' : 'ok'}>{low ? 'LOW' : 'OK'}</span>
+          <div className="stockControls">
+            <button onClick={() => updateItem(item.id, { quantity: Math.max(0, Number(item.quantity) - 1) })}>−</button>
+            <button onClick={() => updateItem(item.id, { quantity: Number(item.quantity) + 1 })}>+</button>
+          </div>
+        </div>;
+      })}
+    </div>
+  </section>;
+}
 
 function AddMemberModal({ onClose, onSave }) {
   const [name, setName] = useState('');
@@ -784,8 +1015,72 @@ function AddTransactionModal({ kind, members, onClose, onSave }) {
   </div>;
 }
 
-function Settings({ data }){ return <section className="panel"><h2>Settings</h2><p><b>Mode:</b> Firestore read/write</p><p><b>Document:</b> teaClub/main</p><p><b>Members loaded:</b> {data.members.length}</p><p><b>Version:</b> v7 monthly-only</p><p><b>Transactions loaded:</b> {data.transactions.length}</p><p><b>Membership system:</b> Monthly payments only</p></section>; }
+
+function EditTransactionModal({ transaction, members, onClose, onSave }) {
+  const [type, setType] = useState(transaction.type || 'Payment');
+  const [member, setMember] = useState(transaction.member || '');
+  const [amount, setAmount] = useState(String(Math.abs(Number(transaction.amount || 0))));
+  const [category, setCategory] = useState(transaction.category || '');
+  const [description, setDescription] = useState(transaction.description || '');
+  const [months, setMonths] = useState(transaction.months || []);
+  const [date, setDate] = useState(String(transaction.date || '').slice(0, 10));
+  const [saving, setSaving] = useState(false);
+
+  function toggleMonth(value) {
+    setMonths(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value].sort());
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    const ok = await onSave({ id: transaction.id, type, member, amount, category, description, months, date });
+    if (!ok) setSaving(false);
+  }
+
+  return <div className="modal" onClick={onClose}>
+    <form className="modalCard" onClick={event => event.stopPropagation()} onSubmit={submit}>
+      <button type="button" className="close" onClick={onClose}><X size={18}/></button>
+      <h2>Edit transaction</h2>
+      <label>Type<select value={type} onChange={e => setType(e.target.value)}><option>Payment</option><option>Expense</option></select></label>
+      {type !== 'Expense' && <label>Member<select value={member} onChange={e => setMember(e.target.value)}>{members.filter(m => !m.resigned).map(m => <option key={m.id}>{m.name}</option>)}</select></label>}
+      <div className="formGrid"><label>Amount<input value={amount} onChange={e => setAmount(e.target.value)}/></label><label>Date<input type="date" value={date} onChange={e => setDate(e.target.value)}/></label></div>
+      {type !== 'Expense' && <div className="monthPicker"><p>Months</p>{monthLabels.map((label, index) => {
+        const value = monthKey(index);
+        return <button type="button" key={value} disabled={index < START_MONTH_INDEX} className={index < START_MONTH_INDEX ? 'inactive' : months.includes(value) ? 'paid' : 'future'} onClick={() => toggleMonth(value)}>{label}</button>;
+      })}</div>}
+      <label>Category<input value={category} onChange={e => setCategory(e.target.value)}/></label>
+      <label>Description<input value={description} onChange={e => setDescription(e.target.value)}/></label>
+      <div className="modalActions"><button type="button" onClick={onClose}>Cancel</button><button className="primary" disabled={saving}><Save size={16}/>{saving ? 'Saving...' : 'Save changes'}</button></div>
+    </form>
+  </div>;
+}
+
+function Settings({ data, settings, onChange }) {
+  const [draft, setDraft] = useState(settings);
+
+  function save(event) {
+    event.preventDefault();
+    onChange({ ...draft, monthlyFee: Number(draft.monthlyFee || 5) });
+  }
+
+  return <section className="panel settingsPanel">
+    <div className="panelTitle"><div><h2>Settings</h2><p className="muted">Poster and club defaults</p></div></div>
+    <form onSubmit={save}>
+      <div className="formGrid">
+        <label>Club title<input value={draft.clubName} onChange={e => setDraft({ ...draft, clubName: e.target.value })}/></label>
+        <label>Monthly fee<input type="number" step="0.01" value={draft.monthlyFee} onChange={e => setDraft({ ...draft, monthlyFee: e.target.value })}/></label>
+        <label>Contact name<input value={draft.contactName} onChange={e => setDraft({ ...draft, contactName: e.target.value })}/></label>
+        <label>Phone<input value={draft.phone} onChange={e => setDraft({ ...draft, phone: e.target.value })}/></label>
+      </div>
+      <label>Email<input value={draft.email} onChange={e => setDraft({ ...draft, email: e.target.value })}/></label>
+      <label>Available drinks<input value={(draft.drinks || []).join(', ')} onChange={e => setDraft({ ...draft, drinks: e.target.value.split(',').map(value => value.trim()).filter(Boolean) })}/></label>
+      <div className="modalActions"><button className="primary" type="submit"><Save size={16}/>Save settings</button></div>
+    </form>
+    <p><b>Firestore document:</b> teaClub/main</p>
+    <p><b>Members loaded:</b> {data.members.length}</p>
+    <p><b>Transactions loaded:</b> {data.transactions.length}</p>
+  </section>;
+}
 function Stat({ title, value, tone }){ return <div className={`stat ${tone || ''}`}><span>{title}</span><b>{value}</b></div>; }
-function StockItem({ name, qty, level }){ return <div className="stockItem"><h3>{name}</h3><p>{qty}</p><span className={level === 'LOW' ? 'low' : 'ok'}>{level}</span></div>; }
 
 createRoot(document.getElementById('root')).render(<App />);
