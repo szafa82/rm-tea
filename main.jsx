@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub } from './services/firestore.js';
 import './style.css';
+import PosterStudio from './components/PosterStudio.jsx';
 
 const APP_VERSION = 'V7 MONTHLY ONLY';
 const YEAR = 2026;
@@ -450,7 +451,7 @@ const filteredMembers = members
       {!error && active === 'Transactions' && <Transactions transactions={transactions} onAddPayment={() => setModal({ type: 'addTransaction', kind: 'Payment' })} onAddExpense={() => setModal({ type: 'addTransaction', kind: 'Expense' })} />}
       {!error && active === 'Reports' && <Reports stats={stats} dashboardRows={clubData.dashboardRows} />}
       {!error && active === 'Stock' && <Stock />}
-      {!error && active === 'Poster Studio' && <Poster members={members} />}
+      {!error && active === 'Poster Studio' && <PosterStudio members={members} />}
       {!error && active === 'Settings' && <Settings data={clubData} />}
     </main>
 
@@ -623,7 +624,6 @@ function Reports({ stats, dashboardRows }) {
 }
 
 function Stock(){ return <section className="stock"><StockItem name="Tea bags" qty="from v6.1" level="OK"/><StockItem name="Milk" qty="from transactions" level="LOW"/><StockItem name="Sugar" qty="from transactions" level="OK"/><StockItem name="Biscuits" qty="from transactions" level="OK"/></section>; }
-function Poster({ members }){ return <section className="poster"><div className="posterCard"><Coffee size={42}/><h1>RM Tea Club</h1><p>{members.filter(m => !m.resigned).length} active members</p><div>{members.filter(m => !m.resigned).slice(0, 50).map(member => <span key={member.id}>{member.name}</span>)}</div></div></section>; }
 
 function AddMemberModal({ onClose, onSave }) {
   const [name, setName] = useState('');
