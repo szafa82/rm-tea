@@ -105,3 +105,11 @@
   }
   @page{size:A4 portrait;margin:0}
 }
+
+/* V9.1 approved-poster refinements */
+.posterTitleBlock h1{font-size:92px;letter-spacing:-5px}
+.joinStrip{background:#fff}
+.memberFrame{padding-left:38px;padding-right:38px}
+.posterMemberName{font-size:16px;height:26px}
+.contactFrame{height:108px}
+.posterBottom{height:112px}

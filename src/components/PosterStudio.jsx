@@ -43,7 +43,7 @@ export default function PosterStudio({ members = [], settings = {} }) {
         </div>
 
         <button className="primary" onClick={() => window.print()}>
-          <Printer size={17} /> Print / Save PDF
+          <Printer size={17} /> Download / Print PDF
         </button>
       </div>
 

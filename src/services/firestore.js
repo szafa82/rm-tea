@@ -17,3 +17,8 @@ export async function saveTransactionsToTeaClub(transactions) {
   const ref = doc(db, "teaClub", "main");
   await updateDoc(ref, { "data.transactions": transactions, updatedAt: serverTimestamp() });
 }
+
+export async function saveTeaClubData(data) {
+  const ref = doc(db, "teaClub", "main");
+  await updateDoc(ref, { data, updatedAt: serverTimestamp() });
+}

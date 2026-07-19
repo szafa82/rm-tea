@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Users, Wallet, ReceiptText, BarChart3, Package, Image, Settings as SettingsIcon,
-  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle, X, Save, ChevronDown, ChevronRight, Pencil, Trash2, FileDown
+  Plus, Search, Bell, Download, Coffee, ShieldCheck, RefreshCw, AlertTriangle, X, Save, ChevronDown, ChevronRight, Pencil, Trash2, FileDown, Upload, Moon, Sun, PlayCircle
 } from 'lucide-react';
-import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub } from './services/firestore.js';
+import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub, saveTeaClubData } from './services/firestore.js';
 import './style.css';
 import PosterStudio from './components/PosterStudio.jsx';
 
-const APP_VERSION = 'V9 CLEAN MONTHLY';
+const APP_VERSION = 'V9.1 COMPLETE MONTHLY';
 const YEAR = 2026;
 const START_MONTH_INDEX = 6; // July 2026
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -178,6 +178,7 @@ function App() {
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState('');
+  const [darkMode, setDarkMode] = useState(() => loadLocal('rmTea.darkMode', false));
   const [posterSettings, setPosterSettings] = useState(() => loadLocal('rmTea.posterSettings', {
     clubName: 'TEA CLUB',
     contactName: 'Adam Szafarczyk',
@@ -240,6 +241,10 @@ function App() {
 
   useEffect(() => saveLocal('rmTea.posterSettings', posterSettings), [posterSettings]);
   useEffect(() => saveLocal('rmTea.stockItems', stockItems), [stockItems]);
+  useEffect(() => {
+    saveLocal('rmTea.darkMode', darkMode);
+    document.body.classList.toggle('darkMode', darkMode);
+  }, [darkMode]);
 
   function notify(message) {
     setToast(message);
@@ -519,16 +524,87 @@ function App() {
     }
   }
 
+
+  function exportBackup() {
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      appVersion: APP_VERSION,
+      data: clubData.raw,
+      localSettings: posterSettings,
+      localStock: stockItems
+    };
+    downloadTextFile(
+      `rm-tea-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify(backup, null, 2),
+      'application/json'
+    );
+    notify('Backup downloaded');
+  }
+
+  async function importBackup(file) {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      const importedData = parsed?.data || parsed;
+      if (!importedData || !Array.isArray(importedData.members) || !Array.isArray(importedData.transactions)) {
+        throw new Error('Backup must contain members and transactions');
+      }
+      if (!window.confirm('Replace Tea Club Firestore data with this backup?')) return;
+      await saveTeaClubData(importedData);
+      if (parsed.localSettings) setPosterSettings(parsed.localSettings);
+      if (parsed.localStock) setStockItems(parsed.localStock);
+      notify('Backup restored');
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      notify(`Import failed: ${err.message || err}`);
+    }
+  }
+
+  async function startNewMonth() {
+    const now = new Date();
+    const index = now.getMonth();
+    if (index < START_MONTH_INDEX) return notify('Monthly system starts in July 2026');
+    const key = monthKey(index);
+    if (!window.confirm(`Start ${monthLabels[index]} ${YEAR} for all active members?`)) return;
+
+    try {
+      const updatedMembers = clubData.rawMembers.map(raw => {
+        const normalized = normalizeMember(raw, 0);
+        if (normalized.resigned) return raw;
+        const monthStatuses = { ...(raw.monthStatuses || {}) };
+        if (!monthStatuses[key] && !normalizePaidMonths(raw).includes(index)) monthStatuses[key] = 'due';
+        return { ...raw, monthStatuses, updatedIn: 'v9.1-start-month' };
+      });
+      await saveMembersToTeaClub(updatedMembers);
+      notify(`${monthLabels[index]} started`);
+      await refreshData();
+    } catch (err) {
+      console.error(err);
+      notify('Could not start new month');
+    }
+  }
+
   const members = clubData.members;
   const transactions = clubData.transactions;
 const filteredMembers = members
   .filter(member => !hideLeftMembers || !member.resigned)
-  .filter(member => [member.name, member.tag, member.note].join(' ').toLowerCase().includes(query.toLowerCase()));
+  .filter(member => {
+    const status = memberOverallStatus(member);
+    const searchable = [
+      member.name, member.tag, member.note, status,
+      member.resigned ? 'left resigned' : 'active',
+      (member.counts?.paid || 0) > 0 ? 'paid' : '',
+      (member.counts?.due || 0) > 0 ? 'due outstanding' : '',
+      (member.counts?.overdue || 0) > 0 ? 'overdue outstanding' : ''
+    ].join(' ').toLowerCase();
+    return searchable.includes(query.toLowerCase());
+  });
 
   const stats = useMemo(() => {
     const income = transactions.filter(t => Number(t.amount) > 0).reduce((sum, tx) => sum + Number(tx.amount), 0);
     const spent = Math.abs(transactions.filter(t => Number(t.amount) < 0).reduce((sum, tx) => sum + Number(tx.amount), 0));
-    const due = members.reduce((sum, member) => sum + Number(member.due || 0), 0);
+    const due = members.filter(member => !member.resigned).reduce((sum, member) => sum + Number(member.due || 0), 0);
     const activeMembers = members.filter(member => !member.resigned).length;
     const membersToChase = members.filter(member =>
       !member.resigned && ((member.counts?.due || 0) > 0 || (member.counts?.overdue || 0) > 0)
@@ -553,7 +629,9 @@ const filteredMembers = members
       <header className="topbar">
         <div><span className="pill">{APP_VERSION}</span><h1>{active}</h1><p className={error ? 'status errorText' : 'status'}>{error || status}</p></div>
         <div className="search"><Search size={16}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search members, payments, notes..." /></div>
-        <button className="icon"><Bell size={18}/><span></span></button>
+        <button className="icon" onClick={() => setDarkMode(value => !value)} title="Toggle dark mode">
+          {darkMode ? <Sun size={18}/> : <Moon size={18}/>}
+        </button>
         <button className="primary" onClick={() => setModal('addMember')}><Plus size={18}/>Add member</button>
         <button className="secondary" onClick={() => setModal({ type: 'addTransaction', kind: 'Payment' })}>Add payment</button>
         <button className="secondary" onClick={() => setModal({ type: 'addTransaction', kind: 'Expense' })}>Add expense</button>
@@ -561,7 +639,7 @@ const filteredMembers = members
       </header>
 
       {error && <section className="panel errorPanel"><AlertTriangle/><div><h2>Firestore error</h2><p>{error}</p></div></section>}
-      {!error && active === 'Dashboard' && <Dashboard stats={stats} months={clubData.months} messages={clubData.messages} />}
+      {!error && active === 'Dashboard' && <Dashboard stats={stats} members={members} months={clubData.months} messages={clubData.messages} />}
     {!error && active === 'Members' && (
   <Members
     members={filteredMembers}
@@ -571,6 +649,7 @@ const filteredMembers = members
     onEdit={member => setModal({ type: 'editMember', member })}
     hideLeftMembers={hideLeftMembers}
     onToggleHideLeft={() => setHideLeftMembers(value => !value)}
+    transactions={transactions}
   />
 )}
       {!error && active === 'Transactions' && <Transactions
@@ -583,7 +662,7 @@ const filteredMembers = members
       {!error && active === 'Reports' && <Reports stats={stats} transactions={transactions} members={members} />}
       {!error && active === 'Stock' && <Stock items={stockItems} onChange={setStockItems} />}
       {!error && active === 'Poster Studio' && <PosterStudio members={members} settings={posterSettings} />}
-      {!error && active === 'Settings' && <Settings data={clubData} settings={posterSettings} onChange={setPosterSettings} />}
+      {!error && active === 'Settings' && <Settings data={clubData} settings={posterSettings} onChange={setPosterSettings} onExport={exportBackup} onImport={importBackup} onStartMonth={startNewMonth} />}
     </main>
 
     {modal === 'addMember' && <AddMemberModal onClose={() => setModal(null)} onSave={addMemberToFirestore} />}
@@ -594,11 +673,13 @@ const filteredMembers = members
   </div>;
 }
 
-function Dashboard({ stats, months, messages }) {
+function Dashboard({ stats, members, months, messages }) {
+  const [showOutstanding, setShowOutstanding] = useState(false);
+  const outstandingMembers = members.filter(member => !member.resigned && member.due > 0);
   const liveRows = [
     { label: 'Tea Club Dashboard', value: '', note: 'Live monthly-only data from Firestore.' },
     { label: 'Current cash balance', value: toMoney(stats.balance), note: 'Income minus expenses.' },
-    { label: 'Monthly outstanding now', value: toMoney(stats.due), note: 'Calculated only from due or overdue months from July 2026.' },
+    { label: 'Monthly outstanding now', value: toMoney(stats.due), note: 'Active members only; calculated from due and overdue month statuses.' },
     { label: 'Members OK', value: stats.activeMembers - stats.membersToChase, note: 'Active members without a due or overdue month.' },
     { label: 'Members to chase', value: stats.membersToChase, note: 'Active members with a due or overdue month.' },
     { label: 'Active monthly members', value: stats.activeMembers, note: 'Left or resigned members excluded.' },
@@ -609,7 +690,7 @@ function Dashboard({ stats, months, messages }) {
     <Stat title="Active members" value={stats.activeMembers} />
     <Stat title="All members" value={stats.allMembers} />
     <Stat title="Balance" value={toMoney(stats.balance)} tone={stats.balance >= 0 ? 'green' : 'red'} />
-    <Stat title="Outstanding" value={toMoney(stats.due)} tone="orange" />
+    <Stat title="Outstanding" value={toMoney(stats.due)} tone="orange" onClick={() => setShowOutstanding(true)} />
     <Stat title="Income" value={toMoney(stats.income)} tone="green" />
     <Stat title="Expenses" value={toMoney(stats.spent)} tone="red" />
 
@@ -618,9 +699,7 @@ function Dashboard({ stats, months, messages }) {
       <table>
         <thead><tr><th>Item</th><th>Value</th><th>Note</th></tr></thead>
         <tbody>{liveRows.map((row, index) => <tr key={index}>
-          <td>{row.label}</td>
-          <td><b>{row.value}</b></td>
-          <td>{row.note}</td>
+          <td>{row.label}</td><td><b>{row.value}</b></td><td>{row.note}</td>
         </tr>)}</tbody>
       </table>
     </div>
@@ -628,11 +707,23 @@ function Dashboard({ stats, months, messages }) {
     <div className="panel">
       <h2>System</h2>
       <p className="alert good">✓ Connected to teaClub/main</p>
+      <p className="alert good">✓ Active-members-only outstanding</p>
       <p className="alert good">✓ Monthly-only member statuses</p>
-      <p className="alert good">✓ Outstanding calculated live</p>
       <p><b>Months:</b> {months.join(', ') || '-'}</p>
       <p><b>Messages:</b> {messages.length}</p>
     </div>
+
+    {showOutstanding && <div className="modal" onClick={() => setShowOutstanding(false)}>
+      <div className="modalCard" onClick={event => event.stopPropagation()}>
+        <button className="close" onClick={() => setShowOutstanding(false)}><X size={18}/></button>
+        <h2>Outstanding members</h2>
+        {outstandingMembers.length === 0
+          ? <p>Everyone is paid.</p>
+          : outstandingMembers.map(member => <div className="outstandingRow" key={member.id}>
+              <strong>{member.name}</strong><span>{toMoney(member.due)}</span>
+            </div>)}
+      </div>
+    </div>}
   </section>;
 }
 
@@ -643,9 +734,16 @@ function Members({
   onMonthChange,
   onEdit,
   hideLeftMembers,
-  onToggleHideLeft
+  onToggleHideLeft,
+  transactions
 }) {
   const [allOpen, setAllOpen] = useState(false);
+  const [sortBy, setSortBy] = useState('name');
+  const sortedMembers = [...members].sort((a, b) => {
+    if (sortBy === 'due') return Number(b.due || 0) - Number(a.due || 0) || a.name.localeCompare(b.name);
+    if (sortBy === 'status') return memberOverallStatus(a).localeCompare(memberOverallStatus(b)) || a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name);
+  });
   const activeCount = members.filter(member => !member.resigned).length;
   const overdueCount = members.filter(member => (member.counts?.overdue || 0) > 0).length;
 
@@ -658,6 +756,11 @@ function Members({
       </div>
 
       <div className="panelActions">
+        <select className="memberSort" value={sortBy} onChange={event => setSortBy(event.target.value)}>
+          <option value="name">Sort: name</option>
+          <option value="due">Sort: outstanding</option>
+          <option value="status">Sort: status</option>
+        </select>
         <button className="secondary" onClick={onToggleHideLeft}>
           {hideLeftMembers ? 'Show left members' : 'Hide left members'}
         </button>
@@ -673,13 +776,14 @@ function Members({
     </div>
 
     <div className="members">
-      {members.map(member => (
+      {sortedMembers.map(member => (
         <MemberCard
           key={member.id}
           member={member}
           forceOpen={allOpen}
           onMonthChange={onMonthChange}
           onEdit={onEdit}
+          transactions={transactions.filter(tx => String(tx.member || '').toLowerCase() === String(member.name || '').toLowerCase())}
         />
       ))}
     </div>
@@ -701,7 +805,7 @@ function nextManualStatus(current) {
   return 'paid';
 }
 
-function MemberCard({ member, forceOpen, onMonthChange, onEdit }) {
+function MemberCard({ member, forceOpen, onMonthChange, onEdit, transactions = [] }) {
   const [localOpen, setLocalOpen] = useState(false);
   const open = forceOpen || localOpen;
   const status = memberOverallStatus(member);
@@ -740,6 +844,17 @@ function MemberCard({ member, forceOpen, onMonthChange, onEdit }) {
         <span>Paid until <b>{paidUntil}</b></span>
       </div>
 
+      <div className="paymentHistory">
+        <h4>Payment history</h4>
+        {transactions.length === 0
+          ? <p className="muted">No recorded transactions.</p>
+          : transactions.slice(0, 8).map(tx => <div className="historyRow" key={tx.id}>
+              <span>{String(tx.date)}</span>
+              <b>{tx.months?.length ? tx.months.join(', ') : tx.description}</b>
+              <strong>{toMoney(tx.amount)}</strong>
+            </div>)}
+      </div>
+
       <div className="months compactMonths">{monthLabels.map((month, index) => {
         const monthStatus = getMonthStatus(member, index);
         const disabled = monthStatus === 'inactive';
@@ -760,7 +875,10 @@ function MemberCard({ member, forceOpen, onMonthChange, onEdit }) {
 
 function Transactions({ transactions, onAddPayment, onAddExpense, onEdit, onDelete }) {
   const [filter, setFilter] = useState('');
-  const visible = transactions.filter(tx =>
+  const [typeFilter, setTypeFilter] = useState('All');
+  const visible = transactions
+    .filter(tx => typeFilter === 'All' || tx.type === typeFilter)
+    .filter(tx =>
     [tx.id, tx.date, tx.type, tx.member, tx.description, tx.category]
       .join(' ')
       .toLowerCase()
@@ -774,6 +892,9 @@ function Transactions({ transactions, onAddPayment, onAddExpense, onEdit, onDele
         <p className="muted">{visible.length} displayed of {transactions.length}</p>
       </div>
       <div className="panelActions">
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+          <option>All</option><option>Payment</option><option>Expense</option>
+        </select>
         <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter transactions..." />
         <button className="primary" onClick={onAddPayment}>Add payment</button>
         <button className="secondary" onClick={onAddExpense}>Add expense</button>
@@ -1081,7 +1202,7 @@ function EditTransactionModal({ transaction, members, onClose, onSave }) {
   </div>;
 }
 
-function Settings({ data, settings, onChange }) {
+function Settings({ data, settings, onChange, onExport, onImport, onStartMonth }) {
   const [draft, setDraft] = useState(settings);
 
   function save(event) {
@@ -1102,11 +1223,18 @@ function Settings({ data, settings, onChange }) {
       <label>Available drinks<input value={(draft.drinks || []).join(', ')} onChange={e => setDraft({ ...draft, drinks: e.target.value.split(',').map(value => value.trim()).filter(Boolean) })}/></label>
       <div className="modalActions"><button className="primary" type="submit"><Save size={16}/>Save settings</button></div>
     </form>
+    <div className="settingsTools">
+      <button className="secondary" onClick={onStartMonth}><PlayCircle size={16}/>Start current month</button>
+      <button className="secondary" onClick={onExport}><Download size={16}/>Export backup JSON</button>
+      <label className="primary fileButton"><Upload size={16}/>Import backup JSON
+        <input type="file" accept="application/json" onChange={event => onImport(event.target.files?.[0])}/>
+      </label>
+    </div>
     <p><b>Firestore document:</b> teaClub/main</p>
     <p><b>Members loaded:</b> {data.members.length}</p>
     <p><b>Transactions loaded:</b> {data.transactions.length}</p>
   </section>;
 }
-function Stat({ title, value, tone }){ return <div className={`stat ${tone || ''}`}><span>{title}</span><b>{value}</b></div>; }
+function Stat({ title, value, tone, onClick }){ return <div onClick={onClick} className={`stat ${tone || ''} ${onClick ? 'clickableStat' : ''}`}><span>{title}</span><b>{value}</b></div>; }
 
 createRoot(document.getElementById('root')).render(<App />);
