@@ -8,3 +8,13 @@
 .paymentHistory{margin:16px 0;background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:14px}.paymentHistory h4{margin:0 0 10px}.historyRow{display:grid;grid-template-columns:95px 1fr auto;gap:10px;padding:7px 0;border-bottom:1px solid #e5e7eb;font-size:12px}.historyRow:last-child{border-bottom:0}.historyRow strong{color:#059669}
 .settingsTools{display:flex;gap:10px;flex-wrap:wrap;margin:22px 0}.fileButton{cursor:pointer}.fileButton input{display:none!important}
 body.darkMode{background:#020617;color:#e5e7eb}body.darkMode .main{background:radial-gradient(circle at top right,#172033,#07101f 60%,#020617)}body.darkMode .panel,body.darkMode .stat,body.darkMode .heroPanel,body.darkMode .member,body.darkMode .posterToolbar,body.darkMode table,body.darkMode .modalCard{background:#111827;color:#e5e7eb;border-color:#263248}body.darkMode th,body.darkMode td,body.darkMode .historyRow,body.darkMode .outstandingRow{border-color:#263248}body.darkMode .memberStats div,body.darkMode .paymentHistory,body.darkMode .reportColumns>div{background:#0b1220;border-color:#263248}body.darkMode .search,body.darkMode .icon,body.darkMode input,body.darkMode select{background:#111827;color:#e5e7eb;border-color:#334155}body.darkMode .status,body.darkMode .muted,body.darkMode .heroPanel p,body.darkMode .memberIdentity p{color:#94a3b8}
+
+/* V10 */
+.undoBar{display:flex;justify-content:space-between;align-items:center;background:#fff7ed;border:1px solid #fdba74;border-radius:16px;padding:14px 16px;margin:18px 0}
+.auditPanel{margin:20px 0;background:#f8fafc;border:1px solid #e5e7eb;border-radius:18px;padding:18px}
+.auditRow{display:grid;grid-template-columns:170px 180px 1fr;gap:12px;padding:9px 0;border-bottom:1px solid #e5e7eb}
+.auditRow:last-child{border-bottom:0}
+.auditRow span,.auditRow small{color:#64748b}
+.dashboardTx{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #e5e7eb}
+body.darkMode .auditPanel,body.darkMode .undoBar{background:#0b1220;border-color:#334155}
+@media(max-width:800px){.auditRow{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}

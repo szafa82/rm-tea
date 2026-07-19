@@ -1,18 +1,15 @@
-# RM Tea Club Manager V9.1 Complete Monthly
+# RM Tea Club Manager V10 Production
 
-Clean Vite/React/Firebase project.
-
-Included:
-- active-members-only outstanding calculation
-- clickable outstanding list
-- persisted hidden resigned members
-- member sorting and payment history
-- transaction filtering, editing and deletion
-- monthly reports and CSV
-- stock register
-- poster studio matching the approved layout
+New in V10:
+- configurable current billing month
+- Start Next Month workflow with Undo
+- automatic payment amount from selected months
+- richer member profile with payment totals
+- local audit trail
+- recent transactions on Dashboard
+- stock alerts on Dashboard
+- backup export/import
 - dark mode
-- Start Current Month
-- Firestore JSON backup export/import
+- clean single-source Vite structure
 
-Upload this whole project to a new branch and merge only after testing.
+Upload the complete project to a new branch.
