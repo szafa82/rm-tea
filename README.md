@@ -1,11 +1,14 @@
-# RM Tea Club Manager V10.0 Payment Colours
+# RM Tea Club Manager V11 — Poster Studio
 
-Adds member payment-progress colours in the Members list:
+V11 is based on the uploaded working project and adds a production Poster Studio:
 
-- Blue: paid through the end of the year
-- Dark green: paid ahead beyond the current month
-- Light green: current month paid
-- Orange: payment due
-- Red: overdue
+- Classic RM, Premium and Dark templates
+- automatic 2/3-column member layout
+- adjustable member-name size
+- optional contact panel
+- direct A4 PDF download
+- high-resolution PNG export
+- browser print support
+- active members loaded automatically from Firestore
 
-A legend is shown above the members list.
+The ZIP intentionally excludes `node_modules`, `dist`, `.git` and caches.
