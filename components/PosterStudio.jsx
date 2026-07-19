@@ -1,13 +1,17 @@
 import React, { useMemo } from 'react';
-import { Coffee, Printer, Download, Phone, Mail, CheckCircle2 } from 'lucide-react';
+import {
+  Printer, Phone, Mail, CalendarDays, Milk, Coffee,
+  UserRound, Check
+} from 'lucide-react';
 import '../poster.css';
 
+const CONTACT_NAME = 'Adam Szafarczyk';
 const CONTACT_PHONE = '07462 879010';
 const CONTACT_EMAIL = 'adam.szafarczyk@royalmail.com';
 
 function formatDate(date = new Date()) {
   return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
+    day: 'numeric',
     month: 'long',
     year: 'numeric'
   }).format(date);
@@ -17,27 +21,21 @@ export default function PosterStudio({ members = [] }) {
   const activeMembers = useMemo(
     () => members
       .filter(member => !member.resigned)
-      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' })),
+      .sort((a, b) =>
+        String(a.name || '').localeCompare(
+          String(b.name || ''),
+          'en',
+          { sensitivity: 'base' }
+        )
+      ),
     [members]
   );
 
-  function printPoster() {
-    window.print();
-  }
-
-  function downloadPoster() {
-    const content = document.getElementById('tea-club-poster');
-    if (!content) return;
-
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Tea Club Poster</title></head><body>${content.outerHTML}</body></html>`;
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `tea-club-poster-${new Date().toISOString().slice(0, 10)}.html`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
+  const splitAt = Math.ceil(activeMembers.length / 2);
+  const columns = [
+    activeMembers.slice(0, splitAt),
+    activeMembers.slice(splitAt)
+  ];
 
   return (
     <section className="posterStudio">
@@ -48,74 +46,116 @@ export default function PosterStudio({ members = [] }) {
           <p>{activeMembers.length} active members included automatically</p>
         </div>
 
-        <div className="posterActions">
-          <button className="secondary" onClick={printPoster}>
-            <Printer size={17} /> Print / Save PDF
-          </button>
-          <button className="primary" onClick={downloadPoster}>
-            <Download size={17} /> Download HTML
-          </button>
-        </div>
+        <button className="primary" onClick={() => window.print()}>
+          <Printer size={17} /> Print / Save PDF
+        </button>
       </div>
 
       <div className="posterStage">
         <article className="teaPoster" id="tea-club-poster">
-          <div className="posterSweep posterSweepTop" />
-          <div className="posterSweep posterSweepBottom" />
+          <div className="posterTopArtwork">
+            <div className="topArc topArcOne" />
+            <div className="topArc topArcTwo" />
+            <div className="topArc topArcThree" />
+          </div>
 
-          <header className="posterHeader">
-            <div className="royalMailMark">
-              <div className="rmCrown">RM</div>
-              <div>
-                <strong>ROYAL MAIL</strong>
-                <span>ENGINEERING</span>
+          <header className="posterLogoBlock">
+            <div className="engineeringLogo" aria-label="RM Engineering">
+              <div className="gearTeeth" />
+              <div className="gearCore">
+                <strong>RM</strong>
               </div>
+              <span>ENGINEERING</span>
             </div>
-            <div className="posterDate">Updated {formatDate()}</div>
           </header>
 
-          <section className="posterHero">
-            <div className="posterCup"><Coffee size={64} strokeWidth={1.7} /></div>
-            <div>
-              <p className="posterKicker">MIDLANDS SUPER HUB</p>
-              <h1>TEA CLUB</h1>
-              <p className="posterSubtitle">Tea, coffee, hot chocolate and milk for members</p>
+          <section className="posterTitleBlock">
+            <h1>TEA CLUB</h1>
+            <div className="titleDivider">
+              <span />
+              <b>◆</b>
+              <span />
             </div>
           </section>
 
-          <section className="posterInfoBand">
-            <div><strong>£5</strong><span>PER MONTH</span></div>
-            <p>Join once and enjoy unlimited drinks during your shifts.</p>
+          <section className="drinksRow" aria-label="Available refreshments">
+            <div><Milk size={20} /> Milk available</div>
+            <i>•</i>
+            <div><Coffee size={20} /> Hot chocolate</div>
+            <i>•</i>
+            <div><span className="drinkLeaf blackLeaf">◒</span> Tea</div>
+            <i>•</i>
+            <div><span className="drinkLeaf greenLeaf">●</span> Decaf tea</div>
+            <i>•</i>
+            <div><span className="coffeeBean brownBean">●</span> Coffee</div>
+            <i>•</i>
+            <div><span className="coffeeBean redBean">●</span> Decaf coffee</div>
           </section>
 
-          <section className="posterMembersSection">
-            <div className="posterSectionHeading">
-              <span>OUR MEMBERS</span>
-              <b>{activeMembers.length}</b>
-            </div>
+          <p className="posterInstruction">
+            Please help yourself to tea, coffee and refreshments only if your name appears below.
+          </p>
 
-            <div className="posterMembersGrid">
-              {activeMembers.map(member => (
-                <div className="posterMember" key={member.id || member.name}>
-                  <CheckCircle2 size={16} />
-                  <span>{member.name}</span>
+          <section className="joinStrip">
+            <div className="joinIcon"><UserRound size={28} /></div>
+            <p>
+              To join or ask a question, please speak to
+              <strong> {CONTACT_NAME}.</strong>
+            </p>
+          </section>
+
+          <section className="memberFrame">
+            <div className="posterMemberColumns">
+              {columns.map((column, columnIndex) => (
+                <div className="posterMemberColumn" key={columnIndex}>
+                  {column.map(member => (
+                    <div className="posterMemberName" key={member.id || member.name}>
+                      <Check size={18} strokeWidth={3.2} />
+                      <span>{member.name}</span>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
+
+            <section className="contactFrame">
+              <div className="contactRibbon">TO JOIN OR FOR ANY QUESTIONS</div>
+
+              <div className="contactGrid">
+                <div className="contactItem">
+                  <div className="contactCircle"><Phone size={30} /></div>
+                  <div>
+                    <span>Call or WhatsApp</span>
+                    <strong>{CONTACT_PHONE}</strong>
+                  </div>
+                </div>
+
+                <div className="contactDivider" />
+
+                <div className="contactItem emailContact">
+                  <div className="contactCircle"><Mail size={30} /></div>
+                  <div>
+                    <span>Email</span>
+                    <strong>{CONTACT_EMAIL}</strong>
+                  </div>
+                </div>
+              </div>
+            </section>
           </section>
 
-          <section className="posterFooter">
-            <div className="posterContact">
-              <h3>JOIN OR ASK A QUESTION</h3>
-              <p><Phone size={17} /> {CONTACT_PHONE}</p>
-              <p><Mail size={17} /> {CONTACT_EMAIL}</p>
-            </div>
+          <footer className="posterBottom">
+            <div className="bottomArc bottomArcGrey" />
+            <div className="bottomArc bottomArcRed" />
+            <div className="bottomArc bottomArcDark" />
 
-            <div className="posterReminder">
-              <strong>Please remember:</strong>
-              <span>Milk is kept in the fridge. Tea, coffee and hot chocolate are available on the worktop.</span>
+            <div className="bottomCup"><Coffee size={34} /></div>
+
+            <div className="updatedLine">
+              <CalendarDays size={21} />
+              <span>Last updated:</span>
+              <strong>{formatDate()}</strong>
             </div>
-          </section>
+          </footer>
         </article>
       </div>
     </section>
