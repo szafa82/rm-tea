@@ -6,8 +6,9 @@ import {
 } from 'lucide-react';
 import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub } from './services/firestore.js';
 import './style.css';
+import PosterStudio from './components/PosterStudio.jsx';
 
-const APP_VERSION = 'V6.5 MEMBER EDITING';
+const APP_VERSION = 'V7 MONTHLY ONLY';
 const YEAR = 2026;
 const START_MONTH_INDEX = 6; // July 2026
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -88,7 +89,7 @@ function normalizeMember(member, index) {
   const paid = normalizePaidMonths(member);
   const monthStatuses = normalizeMonthStatuses(member);
   const monthlyOutstanding = Number(member.monthlyOutstanding ?? member.monthlyDue ?? 0);
-  const oldDebt = Number(member.oldDebt ?? member.weeklyDue ?? 0);
+  const oldDebt = Number(member.oldDebt ?? 0);
   const credit = Number(member.credit ?? member.paidCredited ?? 0);
   const resigned = String(category).toLowerCase().includes('resign') || String(member.status || '').toLowerCase().includes('left');
   const base = {
@@ -98,15 +99,12 @@ function normalizeMember(member, index) {
     tag: resigned ? 'Left / resigned' : String(category || 'ACTIVE'),
     paid,
     monthStatuses,
-    note: notes || member.weeklyStatus || 'No notes',
+    note: notes || 'No notes',
     resigned,
     monthlyFee: Number(member.monthlyFee ?? 5),
-    weeklyFee: Number(member.weeklyFee ?? 1),
     monthlyOutstanding,
     oldDebt,
     credit,
-    lastPaidWeek: member.lastPaidWeek || member.endWeek || '-',
-    weeklyStatus: member.weeklyStatus || '-'
   };
   const counts = getMonthCounts(base);
   const monthDebt = (counts.overdue || 0) * base.monthlyFee + (counts.due || 0) * base.monthlyFee;
@@ -143,7 +141,7 @@ function App() {
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState('');
   const [clubData, setClubData] = useState({
-    members: [], transactions: [], months: [], dashboardRows: [], messages: [], weekly: [], transition: [], rawMembers: [], raw: {}
+    members: [], transactions: [], months: [], dashboardRows: [], messages: [], rawMembers: [], raw: {}
   });
 
   async function refreshData() {
@@ -165,8 +163,6 @@ function App() {
         months: Array.isArray(data.months) ? data.months : [],
         dashboardRows: Array.isArray(data.dashboardRows) ? data.dashboardRows : [],
         messages: Array.isArray(data.messages) ? data.messages : [],
-        weekly: Array.isArray(data.weekly) ? data.weekly : [],
-        transition: Array.isArray(data.transition) ? data.transition : [],
         rawMembers,
         raw: data,
         updatedAt: firestore?.updatedAt || null
@@ -219,7 +215,7 @@ function App() {
           paidMonths: [...new Set(paidMonths)].sort((a, b) => a - b).map(monthKey),
           monthsPaid: [...new Set(paidMonths)].sort((a, b) => a - b).map(monthKey),
           monthsPaidCount: nextStatus === 'paid' ? paidMonths.length : (raw.monthsPaidCount || 0),
-          updatedIn: 'v6.4'
+          updatedIn: 'v7-monthly-only'
         };
       });
 
@@ -251,7 +247,6 @@ function App() {
         status: 'active',
         activeAuto: 'Y',
         monthlyFee: Number(payload.monthlyFee || 5),
-        weeklyFee: Number(payload.weeklyFee || 1),
         credit: 0,
         oldDebt: 0,
         monthlyOutstanding: 0,
@@ -261,9 +256,7 @@ function App() {
         monthStatuses,
         notes: payload.notes || '',
         monthlyNotes: payload.notes || '',
-        weeklyStatus: 'OK',
-        lastPaidWeek: '-',
-        createdIn: 'v6.4'
+        createdIn: 'v7-monthly-only'
       };
 
       await saveUpdatedMembers([...clubData.rawMembers, newMember], `${name} added to Firestore`);
@@ -318,7 +311,7 @@ function App() {
           monthlyFee: Number(payload.monthlyFee || 5),
           notes: payload.notes || '',
           monthlyNotes: payload.notes || '',
-          updatedIn: 'v6.5-member-edit'
+          updatedIn: 'v7-monthly-only'
         };
       });
 
@@ -361,7 +354,7 @@ function App() {
         amount: signedAmount,
         income: signedAmount > 0 ? signedAmount : 0,
         expense: signedAmount < 0 ? Math.abs(signedAmount) : 0,
-        createdIn: 'v6.4'
+        createdIn: 'v7-monthly-only'
       };
 
       const updatedTransactions = [newTransaction, ...(clubData.raw?.transactions || [])];
@@ -384,7 +377,7 @@ function App() {
             paidMonths: mergedPaid.map(monthKey),
             monthsPaid: mergedPaid.map(monthKey),
             monthsPaidCount: mergedPaid.length,
-            updatedIn: 'v6.4-payment'
+            updatedIn: 'v7-monthly-only'
           };
         });
 
@@ -408,7 +401,7 @@ function App() {
   const transactions = clubData.transactions;
 const filteredMembers = members
   .filter(member => !hideLeftMembers || !member.resigned)
-  .filter(member => [member.name, member.tag, member.note, member.weeklyStatus].join(' ').toLowerCase().includes(query.toLowerCase()));
+  .filter(member => [member.name, member.tag, member.note].join(' ').toLowerCase().includes(query.toLowerCase()));
 
   const stats = useMemo(() => {
     const income = transactions.filter(t => Number(t.amount) > 0).reduce((sum, tx) => sum + Number(tx.amount), 0);
@@ -458,7 +451,7 @@ const filteredMembers = members
       {!error && active === 'Transactions' && <Transactions transactions={transactions} onAddPayment={() => setModal({ type: 'addTransaction', kind: 'Payment' })} onAddExpense={() => setModal({ type: 'addTransaction', kind: 'Expense' })} />}
       {!error && active === 'Reports' && <Reports stats={stats} dashboardRows={clubData.dashboardRows} />}
       {!error && active === 'Stock' && <Stock />}
-      {!error && active === 'Poster Studio' && <Poster members={members} />}
+      {!error && active === 'Poster Studio' && <PosterStudio members={members} />}
       {!error && active === 'Settings' && <Settings data={clubData} />}
     </main>
 
@@ -478,7 +471,7 @@ function Dashboard({ stats, dashboardRows, months, messages }) {
     <Stat title="Income" value={toMoney(stats.income)} tone="green" />
     <Stat title="Expenses" value={toMoney(stats.spent)} tone="red" />
     <div className="panel wide"><h2>Firestore dashboard snapshot</h2><table><thead><tr><th>Item</th><th>Value</th><th>Note</th></tr></thead><tbody>{dashboardRows.slice(0, 8).map((row, index) => <tr key={index}><td>{row.label || row.item || '-'}</td><td><b>{String(row.value ?? '')}</b></td><td>{row.note || ''}</td></tr>)}</tbody></table></div>
-    <div className="panel"><h2>System</h2><p className="alert good">✓ Connected to teaClub/main</p><p className="alert good">✓ v6.4 month statuses</p><p className="alert">Payments can now mark months as paid.</p><p><b>Months:</b> {months.join(', ') || '-'}</p><p><b>Messages:</b> {messages.length}</p></div>
+    <div className="panel"><h2>System</h2><p className="alert good">✓ Connected to teaClub/main</p><p className="alert good">✓ Monthly-only member statuses</p><p className="alert">Payments can now mark months as paid.</p><p><b>Months:</b> {months.join(', ') || '-'}</p><p><b>Messages:</b> {messages.length}</p></div>
   </section>;
 }
 
@@ -533,7 +526,7 @@ function Members({
 }
 
 function memberOverallStatus(member) {
-  const text = `${member.tag} ${member.weeklyStatus} ${member.note}`.toLowerCase();
+  const text = `${member.tag} ${member.note}`.toLowerCase();
   if (member.resigned || text.includes('resign') || text.includes('left')) return 'left';
   if ((member.counts?.overdue || 0) > 0) return 'due';
   if ((member.counts?.due || 0) > 0) return 'warn';
@@ -580,14 +573,11 @@ function MemberCard({ member, forceOpen, onMonthChange, onEdit }) {
 
       <div className="memberStats">
         <div><span>Monthly</span><b>{toMoney(member.monthlyFee)}</b></div>
-        <div><span>Weekly</span><b>{toMoney(member.weeklyFee)}</b></div>
         <div><span>Due</span><b className={member.due > 0 ? 'dueText' : 'okText'}>{toMoney(member.due)}</b></div>
       </div>
 
       <div className="miniInfo">
         <span>Paid until <b>{paidUntil}</b></span>
-        <span>Last week <b>{member.lastPaidWeek}</b></span>
-        <span>Weekly <b>{member.weeklyStatus}</b></span>
       </div>
 
       <div className="months compactMonths">{monthLabels.map((month, index) => {
@@ -634,13 +624,11 @@ function Reports({ stats, dashboardRows }) {
 }
 
 function Stock(){ return <section className="stock"><StockItem name="Tea bags" qty="from v6.1" level="OK"/><StockItem name="Milk" qty="from transactions" level="LOW"/><StockItem name="Sugar" qty="from transactions" level="OK"/><StockItem name="Biscuits" qty="from transactions" level="OK"/></section>; }
-function Poster({ members }){ return <section className="poster"><div className="posterCard"><Coffee size={42}/><h1>RM Tea Club</h1><p>{members.filter(m => !m.resigned).length} active members</p><div>{members.filter(m => !m.resigned).slice(0, 50).map(member => <span key={member.id}>{member.name}</span>)}</div></div></section>; }
 
 function AddMemberModal({ onClose, onSave }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('ACTIVE');
   const [monthlyFee, setMonthlyFee] = useState('5');
-  const [weeklyFee, setWeeklyFee] = useState('1');
   const [notes, setNotes] = useState('');
   const [monthsPaid, setMonthsPaid] = useState([monthKey(START_MONTH_INDEX)]);
   const [saving, setSaving] = useState(false);
@@ -652,7 +640,7 @@ function AddMemberModal({ onClose, onSave }) {
   async function submit(event) {
     event.preventDefault();
     setSaving(true);
-    const ok = await onSave({ name, category, monthlyFee, weeklyFee, notes, monthsPaid });
+    const ok = await onSave({ name, category, monthlyFee, notes, monthsPaid });
     if (!ok) setSaving(false);
   }
 
@@ -666,10 +654,7 @@ function AddMemberModal({ onClose, onSave }) {
 
       <label>Name<input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Siju" /></label>
       <label>Category<select value={category} onChange={event => setCategory(event.target.value)}><option>ACTIVE</option><option>ACTIVE - new member</option><option>ORANGE - email not found</option><option>RED - left/resigned</option></select></label>
-      <div className="formGrid">
-        <label>Monthly fee<input value={monthlyFee} onChange={event => setMonthlyFee(event.target.value)} /></label>
-        <label>Weekly fee<input value={weeklyFee} onChange={event => setWeeklyFee(event.target.value)} /></label>
-      </div>
+      <label>Monthly fee<input type="number" min="0" step="0.01" value={monthlyFee} onChange={event => setMonthlyFee(event.target.value)} /></label>
       <label>Notes<input value={notes} onChange={event => setNotes(event.target.value)} placeholder="Optional note" /></label>
 
       <div className="monthPicker"><p>Months paid</p>{monthValues.map((value, index) => <button type="button" key={value} disabled={index < START_MONTH_INDEX} onClick={() => toggleMonth(value)} className={index < START_MONTH_INDEX ? 'inactive' : monthsPaid.includes(value) ? 'paid' : 'future'}>{monthLabels[index]}</button>)}</div>
@@ -781,7 +766,7 @@ function AddTransactionModal({ kind, members, onClose, onSave }) {
   </div>;
 }
 
-function Settings({ data }){ return <section className="panel"><h2>Settings</h2><p><b>Mode:</b> Firestore read/write</p><p><b>Document:</b> teaClub/main</p><p><b>Members loaded:</b> {data.members.length}</p><p><b>v6.4:</b> accordion members, month statuses, linked transactions</p><p><b>Transactions loaded:</b> {data.transactions.length}</p><p><b>Weekly rows:</b> {data.weekly.length}</p><p><b>Transition rows:</b> {data.transition.length}</p></section>; }
+function Settings({ data }){ return <section className="panel"><h2>Settings</h2><p><b>Mode:</b> Firestore read/write</p><p><b>Document:</b> teaClub/main</p><p><b>Members loaded:</b> {data.members.length}</p><p><b>Version:</b> v7 monthly-only</p><p><b>Transactions loaded:</b> {data.transactions.length}</p><p><b>Membership system:</b> Monthly payments only</p></section>; }
 function Stat({ title, value, tone }){ return <div className={`stat ${tone || ''}`}><span>{title}</span><b>{value}</b></div>; }
 function StockItem({ name, qty, level }){ return <div className="stockItem"><h3>{name}</h3><p>{qty}</p><span className={level === 'LOW' ? 'low' : 'ok'}>{level}</span></div>; }
 
