@@ -1,18 +1,24 @@
-# RM Tea Club Manager v6.5
+# RM Tea Club Manager V9 Clean Monthly
 
-## Live features
+Clean single-source project structure.
 
-- Firestore read/write
-- Members and monthly status tracking
-- Add and edit members
-- Mark members as left/resigned
-- Hide/show resigned members
-- Transactions, payments and expenses
-- Dashboard, reports, stock and poster studio
+## Only source folder used
 
-## v6.5
+- `src/main.jsx`
+- `src/style.css`
+- `src/poster.css`
+- `src/components/PosterStudio.jsx`
+- `src/services/firestore.js`
+- `src/firebase.js`
 
-- Added **Edit member** button inside each expanded member card
-- Edit name, status, monthly fee and notes
-- Status **RED - left/resigned** automatically marks the member as left
-- Existing payment months and transaction data are preserved
+There are no duplicate root-level React source files.
+
+## Deploy
+
+Upload the complete contents of this package to the repository root, replacing the old repository contents.
+Firebase App Hosting builds with `npm run build` and starts `server.js`.
+
+## Monthly-only rules
+
+Outstanding is calculated only from due and overdue month statuses from July 2026.
+Legacy weekly dashboard rows and legacy outstanding fields are not used.
