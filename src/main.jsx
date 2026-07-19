@@ -8,7 +8,7 @@ import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub, saveTeaCl
 import './style.css';
 import PosterStudio from './components/PosterStudio.jsx';
 
-const APP_VERSION = 'V9.1 COMPLETE MONTHLY';
+const APP_VERSION = 'V10 PRODUCTION';
 const YEAR = 2026;
 const START_MONTH_INDEX = 6; // July 2026
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -179,12 +179,15 @@ function App() {
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState('');
   const [darkMode, setDarkMode] = useState(() => loadLocal('rmTea.darkMode', false));
+  const [auditLog, setAuditLog] = useState(() => loadLocal('rmTea.auditLog', []));
+  const [undoAction, setUndoAction] = useState(null);
   const [posterSettings, setPosterSettings] = useState(() => loadLocal('rmTea.posterSettings', {
     clubName: 'TEA CLUB',
     contactName: 'Adam Szafarczyk',
     phone: '07462 879010',
     email: 'adam.szafarczyk@royalmail.com',
     monthlyFee: 5,
+    currentBillingMonth: '2026-07',
     drinks: ['Milk available', 'Hot chocolate', 'Tea', 'Decaf tea', 'Coffee', 'Decaf coffee']
   }));
   const [stockItems, setStockItems] = useState(() => loadLocal('rmTea.stockItems', [
@@ -245,11 +248,22 @@ function App() {
     saveLocal('rmTea.darkMode', darkMode);
     document.body.classList.toggle('darkMode', darkMode);
   }, [darkMode]);
+  useEffect(() => saveLocal('rmTea.auditLog', auditLog), [auditLog]);
 
   function notify(message) {
     setToast(message);
     window.clearTimeout(window.__rmTeaToast);
     window.__rmTeaToast = window.setTimeout(() => setToast(''), 3000);
+  }
+
+  function recordAudit(action, details) {
+    const entry = {
+      id: Date.now(),
+      at: new Date().toISOString(),
+      action,
+      details
+    };
+    setAuditLog(current => [entry, ...current].slice(0, 250));
   }
 
   async function saveUpdatedMembers(rawMembers, message) {
@@ -289,6 +303,7 @@ function App() {
       });
 
       await saveUpdatedMembers(updatedMembers, `${monthLabels[monthIndex]} set to ${nextStatus}`);
+      recordAudit('Member month changed', `${memberId}: ${monthLabels[monthIndex]} → ${nextStatus}`);
     } catch (err) {
       console.error(err);
       setError(err.message || String(err));
@@ -329,6 +344,7 @@ function App() {
       };
 
       await saveUpdatedMembers([...clubData.rawMembers, newMember], `${name} added to Firestore`);
+      recordAudit('Member added', name);
       setModal(null);
       return true;
     } catch (err) {
@@ -385,6 +401,7 @@ function App() {
       });
 
       await saveUpdatedMembers(updatedMembers, `${name} updated`);
+      recordAudit('Member updated', name);
       setModal(null);
       return true;
     } catch (err) {
@@ -456,6 +473,7 @@ function App() {
 
       setModal(null);
       notify(`${kind} saved to Firestore`);
+      recordAudit(kind === 'Expense' ? 'Expense added' : 'Payment added', `${memberName} ${toMoney(signedAmount)}`);
       await refreshData();
       return true;
     } catch (err) {
@@ -562,22 +580,38 @@ function App() {
   }
 
   async function startNewMonth() {
-    const now = new Date();
-    const index = now.getMonth();
-    if (index < START_MONTH_INDEX) return notify('Monthly system starts in July 2026');
-    const key = monthKey(index);
-    if (!window.confirm(`Start ${monthLabels[index]} ${YEAR} for all active members?`)) return;
+    const current = posterSettings.currentBillingMonth || '2026-07';
+    const currentDate = new Date(`${current}-01T00:00:00`);
+    const nextDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+    const nextKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+    const nextLabel = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(nextDate);
+
+    if (!window.confirm(`Start ${nextLabel} for all active members?`)) return;
 
     try {
+      const before = clubData.rawMembers;
       const updatedMembers = clubData.rawMembers.map(raw => {
         const normalized = normalizeMember(raw, 0);
         if (normalized.resigned) return raw;
         const monthStatuses = { ...(raw.monthStatuses || {}) };
-        if (!monthStatuses[key] && !normalizePaidMonths(raw).includes(index)) monthStatuses[key] = 'due';
-        return { ...raw, monthStatuses, updatedIn: 'v9.1-start-month' };
+        if (!monthStatuses[nextKey] && !normalizePaidMonths(raw).includes(nextDate.getMonth())) {
+          monthStatuses[nextKey] = 'due';
+        }
+        return { ...raw, monthStatuses, updatedIn: 'v10-start-month' };
       });
+
       await saveMembersToTeaClub(updatedMembers);
-      notify(`${monthLabels[index]} started`);
+      setPosterSettings(currentSettings => ({ ...currentSettings, currentBillingMonth: nextKey }));
+      setUndoAction({
+        label: `Undo starting ${nextLabel}`,
+        run: async () => {
+          await saveMembersToTeaClub(before);
+          setPosterSettings(currentSettings => ({ ...currentSettings, currentBillingMonth: current }));
+          await refreshData();
+        }
+      });
+      recordAudit('Billing month started', nextLabel);
+      notify(`${nextLabel} started`);
       await refreshData();
     } catch (err) {
       console.error(err);
@@ -639,7 +673,7 @@ const filteredMembers = members
       </header>
 
       {error && <section className="panel errorPanel"><AlertTriangle/><div><h2>Firestore error</h2><p>{error}</p></div></section>}
-      {!error && active === 'Dashboard' && <Dashboard stats={stats} members={members} months={clubData.months} messages={clubData.messages} />}
+      {!error && active === 'Dashboard' && <Dashboard stats={stats} members={members} transactions={transactions} stockItems={stockItems} months={clubData.months} messages={clubData.messages} setActive={setActive} />}
     {!error && active === 'Members' && (
   <Members
     members={filteredMembers}
@@ -662,7 +696,7 @@ const filteredMembers = members
       {!error && active === 'Reports' && <Reports stats={stats} transactions={transactions} members={members} />}
       {!error && active === 'Stock' && <Stock items={stockItems} onChange={setStockItems} />}
       {!error && active === 'Poster Studio' && <PosterStudio members={members} settings={posterSettings} />}
-      {!error && active === 'Settings' && <Settings data={clubData} settings={posterSettings} onChange={setPosterSettings} onExport={exportBackup} onImport={importBackup} onStartMonth={startNewMonth} />}
+      {!error && active === 'Settings' && <Settings data={clubData} settings={posterSettings} onChange={setPosterSettings} onExport={exportBackup} onImport={importBackup} onStartMonth={startNewMonth} auditLog={auditLog} undoAction={undoAction} setUndoAction={setUndoAction} />}
     </main>
 
     {modal === 'addMember' && <AddMemberModal onClose={() => setModal(null)} onSave={addMemberToFirestore} />}
@@ -673,7 +707,7 @@ const filteredMembers = members
   </div>;
 }
 
-function Dashboard({ stats, members, months, messages }) {
+function Dashboard({ stats, members, transactions, stockItems, months, messages, setActive }) {
   const [showOutstanding, setShowOutstanding] = useState(false);
   const outstandingMembers = members.filter(member => !member.resigned && member.due > 0);
   const liveRows = [
@@ -702,6 +736,23 @@ function Dashboard({ stats, members, months, messages }) {
           <td>{row.label}</td><td><b>{row.value}</b></td><td>{row.note}</td>
         </tr>)}</tbody>
       </table>
+    </div>
+
+    <div className="panel">
+      <h2>Recent transactions</h2>
+      {transactions.slice(0, 5).map(tx => <div className="dashboardTx" key={tx.id}>
+        <span>{tx.member}</span><b className={tx.amount >= 0 ? 'money' : 'cost'}>{toMoney(tx.amount)}</b>
+      </div>)}
+      <button className="secondary" onClick={() => setActive('Transactions')}>Open transactions</button>
+    </div>
+
+    <div className="panel">
+      <h2>Stock alerts</h2>
+      {stockItems.filter(item => Number(item.quantity) <= Number(item.minimum)).length === 0
+        ? <p className="alert good">✓ Stock levels OK</p>
+        : stockItems.filter(item => Number(item.quantity) <= Number(item.minimum)).map(item =>
+            <p className="alert" key={item.id}>{item.name}: {item.quantity} {item.unit}</p>)}
+      <button className="secondary" onClick={() => setActive('Stock')}>Open stock</button>
     </div>
 
     <div className="panel">
@@ -838,6 +889,8 @@ function MemberCard({ member, forceOpen, onMonthChange, onEdit, transactions = [
       <div className="memberStats">
         <div><span>Monthly</span><b>{toMoney(member.monthlyFee)}</b></div>
         <div><span>Due</span><b className={member.due > 0 ? 'dueText' : 'okText'}>{toMoney(member.due)}</b></div>
+        <div><span>Total paid</span><b>{toMoney(transactions.filter(tx => tx.amount > 0).reduce((sum, tx) => sum + Number(tx.amount || 0), 0))}</b></div>
+        <div><span>Transactions</span><b>{transactions.length}</b></div>
       </div>
 
       <div className="miniInfo">
@@ -921,7 +974,7 @@ function Transactions({ transactions, onAddPayment, onAddExpense, onEdit, onDele
 }
 
 function Reports({ stats, transactions, members }) {
-  const [month, setMonth] = useState(monthKey(new Date().getMonth()));
+  const [month, setMonth] = useState(loadLocal('rmTea.posterSettings', {}).currentBillingMonth || monthKey(new Date().getMonth()));
   const monthTransactions = transactions.filter(tx =>
     String(tx.date || '').startsWith(month) || (tx.months || []).includes(month)
   );
@@ -1130,7 +1183,11 @@ function AddTransactionModal({ kind, members, onClose, onSave }) {
   }
 
   function toggleMonth(month) {
-    setMonths(prev => prev.includes(month) ? prev.filter(item => item !== month) : [...prev, month].sort());
+    setMonths(prev => {
+      const next = prev.includes(month) ? prev.filter(item => item !== month) : [...prev, month].sort();
+      if (type !== 'Expense') setAmount(String(next.length * 5));
+      return next;
+    });
   }
 
   async function submit(event) {
@@ -1174,7 +1231,11 @@ function EditTransactionModal({ transaction, members, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
 
   function toggleMonth(value) {
-    setMonths(current => current.includes(value) ? current.filter(item => item !== value) : [...current, value].sort());
+    setMonths(current => {
+      const next = current.includes(value) ? current.filter(item => item !== value) : [...current, value].sort();
+      if (type !== 'Expense') setAmount(String(next.length * 5));
+      return next;
+    });
   }
 
   async function submit(event) {
@@ -1202,7 +1263,7 @@ function EditTransactionModal({ transaction, members, onClose, onSave }) {
   </div>;
 }
 
-function Settings({ data, settings, onChange, onExport, onImport, onStartMonth }) {
+function Settings({ data, settings, onChange, onExport, onImport, onStartMonth, auditLog, undoAction, setUndoAction }) {
   const [draft, setDraft] = useState(settings);
 
   function save(event) {
@@ -1216,6 +1277,7 @@ function Settings({ data, settings, onChange, onExport, onImport, onStartMonth }
       <div className="formGrid">
         <label>Club title<input value={draft.clubName} onChange={e => setDraft({ ...draft, clubName: e.target.value })}/></label>
         <label>Monthly fee<input type="number" step="0.01" value={draft.monthlyFee} onChange={e => setDraft({ ...draft, monthlyFee: e.target.value })}/></label>
+        <label>Current billing month<input type="month" value={draft.currentBillingMonth || '2026-07'} onChange={e => setDraft({ ...draft, currentBillingMonth: e.target.value })}/></label>
         <label>Contact name<input value={draft.contactName} onChange={e => setDraft({ ...draft, contactName: e.target.value })}/></label>
         <label>Phone<input value={draft.phone} onChange={e => setDraft({ ...draft, phone: e.target.value })}/></label>
       </div>
@@ -1230,6 +1292,21 @@ function Settings({ data, settings, onChange, onExport, onImport, onStartMonth }
         <input type="file" accept="application/json" onChange={event => onImport(event.target.files?.[0])}/>
       </label>
     </div>
+    {undoAction && <div className="undoBar">
+      <span>{undoAction.label}</span>
+      <button className="secondary" onClick={async () => { await undoAction.run(); setUndoAction(null); }}>Undo</button>
+    </div>}
+
+    <div className="auditPanel">
+      <h3>Recent activity</h3>
+      {auditLog.length === 0 ? <p className="muted">No activity recorded yet.</p> :
+        auditLog.slice(0, 20).map(entry => <div className="auditRow" key={entry.id}>
+          <span>{new Date(entry.at).toLocaleString('en-GB')}</span>
+          <b>{entry.action}</b>
+          <small>{entry.details}</small>
+        </div>)}
+    </div>
+
     <p><b>Firestore document:</b> teaClub/main</p>
     <p><b>Members loaded:</b> {data.members.length}</p>
     <p><b>Transactions loaded:</b> {data.transactions.length}</p>
