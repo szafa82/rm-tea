@@ -1,0 +1,50 @@
+/* Poster Studio */
+.posterStudio{display:flex;flex-direction:column;gap:22px}
+.posterToolbar{display:flex;justify-content:space-between;align-items:center;gap:18px;background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:24px 28px;box-shadow:0 18px 45px #0f172a12}
+.posterToolbar h2{margin:5px 0;font-size:30px}
+.posterToolbar p{margin:0;color:#64748b;font-weight:700}
+.posterActions{display:flex;gap:10px;flex-wrap:wrap}
+.posterStage{display:flex;justify-content:center;padding:26px;border-radius:28px;background:linear-gradient(135deg,#dfe7f0,#f8fafc);overflow:auto}
+.teaPoster{position:relative;width:794px;min-height:1123px;background:#fff;color:#111827;overflow:hidden;box-shadow:0 24px 70px #0f172a30;padding:52px 58px 44px}
+.posterSweep{position:absolute;pointer-events:none;border-radius:50%}
+.posterSweepTop{width:620px;height:260px;right:-170px;top:-170px;background:#e4002b;transform:rotate(-8deg);box-shadow:0 30px 0 #111827}
+.posterSweepBottom{width:720px;height:280px;left:-230px;bottom:-205px;background:#e4002b;transform:rotate(8deg);box-shadow:0 -26px 0 #111827}
+.posterHeader,.posterHero,.posterInfoBand,.posterMembersSection,.posterFooter{position:relative;z-index:2}
+.posterHeader{display:flex;justify-content:space-between;align-items:flex-start}
+.royalMailMark{display:flex;align-items:center;gap:13px}
+.rmCrown{width:64px;height:64px;border-radius:16px;background:#e4002b;color:#fff;display:grid;place-items:center;font-size:25px;font-weight:1000;box-shadow:0 12px 30px #e4002b33}
+.royalMailMark strong{display:block;font-size:20px;letter-spacing:.07em}
+.royalMailMark span{font-size:12px;font-weight:900;letter-spacing:.16em;color:#64748b}
+.posterDate{font-size:12px;font-weight:900;color:#fff;background:#111827;padding:9px 13px;border-radius:999px;margin-top:4px}
+.posterHero{display:flex;align-items:center;gap:26px;margin:58px 0 32px}
+.posterCup{width:120px;height:120px;border-radius:30px;background:#111827;color:#fff;display:grid;place-items:center;box-shadow:0 18px 45px #11182733}
+.posterKicker{margin:0 0 5px;color:#e4002b;font-size:14px;font-weight:1000;letter-spacing:.2em}
+.posterHero h1{margin:0;font-size:76px;line-height:.9;letter-spacing:-4px}
+.posterSubtitle{max-width:480px;margin:14px 0 0;font-size:20px;line-height:1.35;color:#475569;font-weight:700}
+.posterInfoBand{display:grid;grid-template-columns:170px 1fr;align-items:center;background:#e4002b;color:#fff;border-radius:24px;padding:24px 28px;box-shadow:0 18px 40px #e4002b2b}
+.posterInfoBand div{display:flex;flex-direction:column;border-right:1px solid #ffffff55}
+.posterInfoBand strong{font-size:54px;line-height:1}
+.posterInfoBand span{font-size:13px;font-weight:1000;letter-spacing:.12em}
+.posterInfoBand p{margin:0;padding-left:26px;font-size:18px;font-weight:800;line-height:1.35}
+.posterMembersSection{margin-top:34px}
+.posterSectionHeading{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.posterSectionHeading span{font-size:18px;font-weight:1000;letter-spacing:.16em}
+.posterSectionHeading b{margin-left:auto;background:#111827;color:#fff;border-radius:999px;padding:8px 13px}
+.posterMembersGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px}
+.posterMember{display:flex;align-items:center;gap:9px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:11px 13px;font-size:15px;font-weight:850}
+.posterMember svg{color:#e4002b;flex:0 0 auto}
+.posterFooter{display:grid;grid-template-columns:1fr 1.1fr;gap:20px;margin-top:30px;padding-top:24px;border-top:2px solid #111827}
+.posterContact h3{margin:0 0 12px;font-size:16px;letter-spacing:.12em}
+.posterContact p{display:flex;align-items:center;gap:9px;margin:8px 0;font-weight:850}
+.posterContact svg{color:#e4002b}
+.posterReminder{background:#111827;color:#fff;border-radius:20px;padding:18px 20px;display:flex;flex-direction:column;gap:6px}
+.posterReminder strong{color:#fff;font-size:15px}
+.posterReminder span{color:#dbe4ee;line-height:1.45;font-size:13px}
+@media(max-width:900px){.posterToolbar{align-items:flex-start;flex-direction:column}}
+@media(max-width:700px){.posterStage{padding:10px;justify-content:flex-start}.teaPoster{width:794px;min-width:794px;transform:scale(.72);transform-origin:top left;margin-bottom:-315px}}
+@media print{
+  body *{visibility:hidden!important}
+  #tea-club-poster,#tea-club-poster *{visibility:visible!important}
+  #tea-club-poster{position:absolute;left:0;top:0;width:210mm;min-height:297mm;box-shadow:none;margin:0}
+  @page{size:A4 portrait;margin:0}
+}
