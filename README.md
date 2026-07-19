@@ -1,11 +1,11 @@
-# RM Tea Club Manager V11.2 — Poster Fonts & Clean Logo
+# RM Tea Club Manager V11.3 — Tinted Member Cards
 
-Includes everything from V11.1 plus:
+Includes V11.2 and makes payment status colours much easier to recognise:
 
-- rebuilt single RM Engineering emblem (no overlapping layers)
-- separate title font selector
-- separate member-list font selector
-- title fonts: Montserrat, Poppins, Inter, Arial, Georgia
-- member fonts: Inter, Montserrat, Poppins, Arial, Georgia
-- adjustable logo size
-- existing template, column, name-size, contact, PNG and PDF controls retained
+- stronger full-card background tint
+- matching border and coloured shadow
+- stronger hover state
+- matching status badge colours
+- dark-mode equivalents
+
+Status logic remains unchanged.

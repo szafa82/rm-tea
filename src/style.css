@@ -67,3 +67,47 @@ body.darkMode .member.memberOverdue{background:linear-gradient(90deg,#450a0a 0,#
 .member.memberLeft{border-left:8px solid #64748b}
 .member.memberLeft:before{background:#64748b!important}
 @media(max-width:800px){.memberLegend{gap:9px 12px;font-size:12px}}
+
+/* V11.3 — stronger full-card payment status tints */
+.member.memberPaidYear{
+  background:linear-gradient(135deg,#dbeafe 0%,#eff6ff 52%,#ffffff 100%)!important;
+  border-color:#60a5fa!important;
+  box-shadow:0 14px 34px rgba(37,99,235,.16)!important;
+}
+.member.memberAhead{
+  background:linear-gradient(135deg,#d1fae5 0%,#ecfdf5 52%,#ffffff 100%)!important;
+  border-color:#22c55e!important;
+  box-shadow:0 14px 34px rgba(22,101,52,.16)!important;
+}
+.member.memberCurrent{
+  background:linear-gradient(135deg,#ecfccb 0%,#f0fdf4 55%,#ffffff 100%)!important;
+  border-color:#86efac!important;
+  box-shadow:0 14px 34px rgba(34,197,94,.12)!important;
+}
+.member.memberDue{
+  background:linear-gradient(135deg,#ffedd5 0%,#fff7ed 55%,#ffffff 100%)!important;
+  border-color:#fb923c!important;
+  box-shadow:0 14px 34px rgba(249,115,22,.16)!important;
+}
+.member.memberOverdue{
+  background:linear-gradient(135deg,#fee2e2 0%,#fef2f2 55%,#ffffff 100%)!important;
+  border-color:#f87171!important;
+  box-shadow:0 14px 34px rgba(220,38,38,.16)!important;
+}
+.member.memberPaidYear:hover{background:linear-gradient(135deg,#bfdbfe 0%,#e0efff 55%,#ffffff 100%)!important}
+.member.memberAhead:hover{background:linear-gradient(135deg,#a7f3d0 0%,#dcfce7 55%,#ffffff 100%)!important}
+.member.memberCurrent:hover{background:linear-gradient(135deg,#d9f99d 0%,#ecfccb 55%,#ffffff 100%)!important}
+.member.memberDue:hover{background:linear-gradient(135deg,#fed7aa 0%,#ffedd5 55%,#ffffff 100%)!important}
+.member.memberOverdue:hover{background:linear-gradient(135deg,#fecaca 0%,#fee2e2 55%,#ffffff 100%)!important}
+
+.member.memberPaidYear .statusBadge{background:#dbeafe!important;color:#1d4ed8!important}
+.member.memberAhead .statusBadge{background:#dcfce7!important;color:#166534!important}
+.member.memberCurrent .statusBadge{background:#ecfccb!important;color:#3f6212!important}
+.member.memberDue .statusBadge{background:#ffedd5!important;color:#9a3412!important}
+.member.memberOverdue .statusBadge{background:#fee2e2!important;color:#991b1b!important}
+
+body.darkMode .member.memberPaidYear{background:linear-gradient(135deg,#172554,#111827 70%)!important}
+body.darkMode .member.memberAhead{background:linear-gradient(135deg,#052e16,#111827 70%)!important}
+body.darkMode .member.memberCurrent{background:linear-gradient(135deg,#1a2e05,#111827 70%)!important}
+body.darkMode .member.memberDue{background:linear-gradient(135deg,#431407,#111827 70%)!important}
+body.darkMode .member.memberOverdue{background:linear-gradient(135deg,#450a0a,#111827 70%)!important}
