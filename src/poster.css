@@ -128,3 +128,38 @@
 body.darkMode .posterControls{background:#111827;border-color:#334155}body.darkMode .posterControls label{color:#e5e7eb}body.darkMode .posterControls select{background:#0b1220;color:#e5e7eb;border-color:#334155}
 @media(max-width:900px){.posterActions{width:100%}.posterControls{align-items:flex-start;flex-direction:column}}
 @media print{.posterControls,.posterToolbar{display:none!important}.posterStage{padding:0!important;background:#fff!important}}
+
+/* V11.2 clean logo + typography controls */
+.teaPoster{font-family:var(--member-font,Inter),Segoe UI,Arial,sans-serif}
+.posterTitleBlock h1{font-family:var(--title-font,Montserrat),Arial,sans-serif}
+.posterMemberName,.posterInstruction,.joinStrip,.contactFrame,.updatedLine,.drinksRow{font-family:var(--member-font,Inter),Segoe UI,Arial,sans-serif}
+
+.posterLogoBlock{height:128px;align-items:flex-start;padding-top:30px}
+.cleanEngineeringLogo{
+  transform:scale(var(--logo-scale,1));
+  transform-origin:top center;
+  width:132px;height:96px;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  gap:5px;position:relative;color:var(--poster-red);
+}
+.cleanEngineeringLogo .logoBadge{
+  width:68px;height:68px;border-radius:50%;
+  display:grid;place-items:center;
+  background:linear-gradient(145deg,#d9081d,#88000b);
+  border:5px solid #fff;
+  outline:4px solid var(--poster-red);
+  box-shadow:0 5px 12px #0002;
+  position:relative;
+}
+.cleanEngineeringLogo .logoBadge:before{
+  content:"";position:absolute;inset:-11px;border:4px solid var(--poster-red);border-radius:50%;
+}
+.cleanEngineeringLogo .logoBadge strong{font-size:26px;line-height:1;color:#ffd326;letter-spacing:1px;text-shadow:0 1px 0 #6c0008}
+.cleanEngineeringLogo>span{
+  position:static;background:transparent;padding:0;
+  color:var(--poster-red);font-size:13px;font-weight:1000;letter-spacing:.08em;line-height:1;
+}
+.cleanEngineeringLogo .gearTeeth,.cleanEngineeringLogo .gearCore{display:none!important}
+
+.posterControls{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.posterControls label select{min-width:120px}
