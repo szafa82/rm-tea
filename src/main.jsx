@@ -8,7 +8,7 @@ import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub, saveTeaCl
 import './style.css';
 import PosterStudio from './components/PosterStudio.jsx';
 
-const APP_VERSION = 'V11 POSTER STUDIO';
+const APP_VERSION = 'V11.1 PAYMENT COLOURS';
 const YEAR = 2026;
 const START_MONTH_INDEX = 6; // July 2026
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -783,30 +783,18 @@ function memberPaymentProgress(member) {
   if (member.resigned) return 'memberLeft';
 
   const now = new Date();
-  const currentMonthIndex = now.getMonth();
-  const paidMonths = member.paidMonths || [];
-  const statuses = member.monthStatuses || {};
+  const currentMonthIndex = YEAR === now.getFullYear() ? now.getMonth() : START_MONTH_INDEX;
+  const paidIndices = Array.isArray(member.paid) ? member.paid : [];
 
-  const paidIndices = monthLabels
-    .map((_, index) => {
-      const key = monthKey(index);
-      const status = statuses[key];
-      return (paidMonths.includes(index) || status === 'paid') ? index : null;
-    })
-    .filter(index => index !== null);
-
+  const isPaid = index => getMonthStatus(member, index) === 'paid' || paidIndices.includes(index);
   const paidThroughYearEnd = monthLabels
     .slice(currentMonthIndex)
-    .every((_, offset) => {
-      const index = currentMonthIndex + offset;
-      const key = monthKey(index);
-      return paidMonths.includes(index) || statuses[key] === 'paid';
-    });
+    .every((_month, offset) => isPaid(currentMonthIndex + offset));
 
+  if ((member.counts?.overdue || 0) > 0) return 'memberOverdue';
   if (paidThroughYearEnd) return 'memberPaidYear';
   if (paidIndices.some(index => index > currentMonthIndex)) return 'memberAhead';
-  if (paidIndices.includes(currentMonthIndex)) return 'memberCurrent';
-  if ((member.counts?.overdue || 0) > 0) return 'memberOverdue';
+  if (isPaid(currentMonthIndex)) return 'memberCurrent';
   return 'memberDue';
 }
 
@@ -858,6 +846,14 @@ function Members({
       </div>
     </div>
 
+
+    <div className="memberLegend" aria-label="Payment colour legend">
+      <span><i className="legendDot paidYear"/>Paid to end of year</span>
+      <span><i className="legendDot ahead"/>Paid ahead</span>
+      <span><i className="legendDot current"/>Current month paid</span>
+      <span><i className="legendDot due"/>Due now</span>
+      <span><i className="legendDot overdue"/>Overdue</span>
+    </div>
     <div className="members">
       {sortedMembers.map(member => (
         <MemberCard
@@ -896,7 +892,7 @@ function MemberCard({ member, forceOpen, onMonthChange, onEdit, transactions = [
   const paidUntil = member.paid.length ? monthLabels[Math.max(...member.paid)] : '-';
   const counts = member.counts || {};
 
-  return <article className={`member member-${status} ${open ? 'expanded' : 'collapsed'}`}>
+  return <article className={`member member-${status} ${paymentProgressClass} ${open ? 'expanded' : 'collapsed'}`}>
     <button type="button" className="memberSummary" onClick={() => setLocalOpen(v => !v)}>
       <div className="memberIdentity">
         <div className="avatar">{member.name?.[0] || '?'}</div>

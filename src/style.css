@@ -52,3 +52,18 @@ body.darkMode .member.memberAhead{background:linear-gradient(90deg,#052e16 0,#11
 body.darkMode .member.memberCurrent{background:linear-gradient(90deg,#14532d 0,#111827 34%)}
 body.darkMode .member.memberDue{background:linear-gradient(90deg,#431407 0,#111827 34%)}
 body.darkMode .member.memberOverdue{background:linear-gradient(90deg,#450a0a 0,#111827 34%)}
+
+/* V11.1 payment progress colours — final override */
+.member.memberPaidYear{border-left:8px solid #2563eb;background:linear-gradient(135deg,#dbeafe,#eff6ff 48%,#fff)!important}
+.member.memberPaidYear:before{background:#2563eb!important}
+.member.memberAhead{border-left:8px solid #166534;background:linear-gradient(135deg,#dcfce7,#f0fdf4 48%,#fff)!important}
+.member.memberAhead:before{background:#166534!important}
+.member.memberCurrent{border-left:8px solid #4ade80;background:linear-gradient(135deg,#ecfdf5,#f0fdf4 48%,#fff)!important}
+.member.memberCurrent:before{background:#4ade80!important}
+.member.memberDue{border-left:8px solid #f59e0b;background:linear-gradient(135deg,#fff7ed,#fffbeb 48%,#fff)!important}
+.member.memberDue:before{background:#f59e0b!important}
+.member.memberOverdue{border-left:8px solid #dc2626;background:linear-gradient(135deg,#fef2f2,#fff1f2 48%,#fff)!important}
+.member.memberOverdue:before{background:#dc2626!important}
+.member.memberLeft{border-left:8px solid #64748b}
+.member.memberLeft:before{background:#64748b!important}
+@media(max-width:800px){.memberLegend{gap:9px 12px;font-size:12px}}
