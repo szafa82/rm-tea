@@ -8,7 +8,7 @@ import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub, saveTeaCl
 import './style.css';
 import PosterStudio from './components/PosterStudio.jsx';
 
-const APP_VERSION = 'V10 PRODUCTION';
+const APP_VERSION = 'V10.0 PAYMENT COLOURS';
 const YEAR = 2026;
 const START_MONTH_INDEX = 6; // July 2026
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -778,6 +778,38 @@ function Dashboard({ stats, members, transactions, stockItems, months, messages,
   </section>;
 }
 
+
+function memberPaymentProgress(member) {
+  if (member.resigned) return 'memberLeft';
+
+  const now = new Date();
+  const currentMonthIndex = now.getMonth();
+  const paidMonths = member.paidMonths || [];
+  const statuses = member.monthStatuses || {};
+
+  const paidIndices = monthLabels
+    .map((_, index) => {
+      const key = monthKey(index);
+      const status = statuses[key];
+      return (paidMonths.includes(index) || status === 'paid') ? index : null;
+    })
+    .filter(index => index !== null);
+
+  const paidThroughYearEnd = monthLabels
+    .slice(currentMonthIndex)
+    .every((_, offset) => {
+      const index = currentMonthIndex + offset;
+      const key = monthKey(index);
+      return paidMonths.includes(index) || statuses[key] === 'paid';
+    });
+
+  if (paidThroughYearEnd) return 'memberPaidYear';
+  if (paidIndices.some(index => index > currentMonthIndex)) return 'memberAhead';
+  if (paidIndices.includes(currentMonthIndex)) return 'memberCurrent';
+  if ((member.counts?.overdue || 0) > 0) return 'memberOverdue';
+  return 'memberDue';
+}
+
 function Members({
   members,
   total,
@@ -831,6 +863,7 @@ function Members({
         <MemberCard
           key={member.id}
           member={member}
+          paymentProgressClass={memberPaymentProgress(member)}
           forceOpen={allOpen}
           onMonthChange={onMonthChange}
           onEdit={onEdit}
@@ -856,7 +889,7 @@ function nextManualStatus(current) {
   return 'paid';
 }
 
-function MemberCard({ member, forceOpen, onMonthChange, onEdit, transactions = [] }) {
+function MemberCard({ member, forceOpen, onMonthChange, onEdit, transactions = [], paymentProgressClass = '' }) {
   const [localOpen, setLocalOpen] = useState(false);
   const open = forceOpen || localOpen;
   const status = memberOverallStatus(member);

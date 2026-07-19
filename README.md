@@ -1,15 +1,11 @@
-# RM Tea Club Manager V10 Production
+# RM Tea Club Manager V10.0 Payment Colours
 
-New in V10:
-- configurable current billing month
-- Start Next Month workflow with Undo
-- automatic payment amount from selected months
-- richer member profile with payment totals
-- local audit trail
-- recent transactions on Dashboard
-- stock alerts on Dashboard
-- backup export/import
-- dark mode
-- clean single-source Vite structure
+Adds member payment-progress colours in the Members list:
 
-Upload the complete project to a new branch.
+- Blue: paid through the end of the year
+- Dark green: paid ahead beyond the current month
+- Light green: current month paid
+- Orange: payment due
+- Red: overdue
+
+A legend is shown above the members list.

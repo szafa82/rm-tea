@@ -18,3 +18,37 @@ body.darkMode{background:#020617;color:#e5e7eb}body.darkMode .main{background:ra
 .dashboardTx{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #e5e7eb}
 body.darkMode .auditPanel,body.darkMode .undoBar{background:#0b1220;border-color:#334155}
 @media(max-width:800px){.auditRow{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
+
+/* V10.0 member payment colour coding */
+.memberLegend{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px 18px;
+  padding:14px 16px;
+  margin:12px 0 18px;
+  background:#f8fafc;
+  border:1px solid #e5e7eb;
+  border-radius:16px;
+  font-size:13px;
+  font-weight:800;
+}
+.memberLegend span{display:flex;align-items:center;gap:8px}
+.legendDot{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid #0002}
+.legendDot.paidYear{background:#2563eb}
+.legendDot.ahead{background:#166534}
+.legendDot.current{background:#86efac}
+.legendDot.due{background:#fb923c}
+.legendDot.overdue{background:#ef4444}
+
+.member.memberPaidYear{border-left:8px solid #2563eb;background:linear-gradient(90deg,#dbeafe 0,#fff 34%)}
+.member.memberAhead{border-left:8px solid #166534;background:linear-gradient(90deg,#dcfce7 0,#fff 34%)}
+.member.memberCurrent{border-left:8px solid #86efac;background:linear-gradient(90deg,#f0fdf4 0,#fff 34%)}
+.member.memberDue{border-left:8px solid #fb923c;background:linear-gradient(90deg,#fff7ed 0,#fff 34%)}
+.member.memberOverdue{border-left:8px solid #ef4444;background:linear-gradient(90deg,#fef2f2 0,#fff 34%)}
+
+body.darkMode .memberLegend{background:#0b1220;border-color:#334155}
+body.darkMode .member.memberPaidYear{background:linear-gradient(90deg,#172554 0,#111827 34%)}
+body.darkMode .member.memberAhead{background:linear-gradient(90deg,#052e16 0,#111827 34%)}
+body.darkMode .member.memberCurrent{background:linear-gradient(90deg,#14532d 0,#111827 34%)}
+body.darkMode .member.memberDue{background:linear-gradient(90deg,#431407 0,#111827 34%)}
+body.darkMode .member.memberOverdue{background:linear-gradient(90deg,#450a0a 0,#111827 34%)}
