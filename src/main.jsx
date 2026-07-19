@@ -8,7 +8,7 @@ import { loadTeaClub, saveMembersToTeaClub, saveTransactionsToTeaClub, saveTeaCl
 import './style.css';
 import PosterStudio from './components/PosterStudio.jsx';
 
-const APP_VERSION = 'V10.0 PAYMENT COLOURS';
+const APP_VERSION = 'V11 POSTER STUDIO';
 const YEAR = 2026;
 const START_MONTH_INDEX = 6; // July 2026
 const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

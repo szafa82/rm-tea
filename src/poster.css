@@ -113,3 +113,18 @@
 .posterMemberName{font-size:16px;height:26px}
 .contactFrame{height:108px}
 .posterBottom{height:112px}
+
+/* V11 Poster Studio controls and export-ready templates */
+.posterToolbarV11{flex-wrap:wrap}.posterActions{display:flex;gap:10px;flex-wrap:wrap}
+.posterControls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:14px 18px;box-shadow:0 12px 35px #0f172a0d}
+.posterControls label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:900;color:#334155}
+.posterControls select{border:1px solid #dbe2ea;border-radius:11px;padding:8px 10px;background:#fff;font-weight:800}
+.posterControls input[type=range]{width:125px}.scaleControl b{min-width:42px}.toggleControl input{width:17px;height:17px}
+.teaPoster{--name-scale:1}.posterMemberName{font-size:calc(16px * var(--name-scale))}.posterMemberName span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.columns-3 .posterMemberColumns{grid-template-columns:repeat(3,1fr);gap:0 17px}.columns-3 .posterMemberColumn{padding:0 15px;border-right:1.5px solid var(--poster-red)}.columns-3 .posterMemberColumn:first-child{padding-left:0}.columns-3 .posterMemberColumn:last-child{border-right:0;padding-right:0}.columns-3 .posterMemberName{font-size:calc(13px * var(--name-scale));gap:6px}
+.poster-premium{--poster-red:#a90013;--poster-dark:#172033;background:radial-gradient(circle at 50% 35%,#fff 0,#fff 50%,#f4f0ea 100%)}
+.poster-premium .titleDivider,.poster-premium .posterMemberName svg{color:#b28a2e}.poster-premium .joinStrip,.poster-premium .memberFrame,.poster-premium .contactFrame{border-color:#b28a2e}.poster-premium .contactRibbon,.poster-premium .contactCircle,.poster-premium .bottomCup{background:linear-gradient(#c7a34d,#8e6915)}.poster-premium .contactItem strong,.poster-premium .joinStrip strong{color:#8e6915}
+.poster-dark{--poster-red:#ef233c;--poster-dark:#f8fafc;background:radial-gradient(circle at 50% 35%,#182235 0,#0f172a 62%,#020617 100%);color:#f8fafc}.poster-dark .engineeringLogo>span,.poster-dark .contactFrame,.poster-dark .joinStrip{background:#111827}.poster-dark .posterInstruction{color:#e2e8f0}.poster-dark .contactFrame{color:#f8fafc}.poster-dark .topArcThree{border-color:#111827;box-shadow:0 14px 0 #475569,0 25px 0 #111827,0 36px 0 var(--poster-red)}
+body.darkMode .posterControls{background:#111827;border-color:#334155}body.darkMode .posterControls label{color:#e5e7eb}body.darkMode .posterControls select{background:#0b1220;color:#e5e7eb;border-color:#334155}
+@media(max-width:900px){.posterActions{width:100%}.posterControls{align-items:flex-start;flex-direction:column}}
+@media print{.posterControls,.posterToolbar{display:none!important}.posterStage{padding:0!important;background:#fff!important}}
