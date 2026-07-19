@@ -22,3 +22,11 @@ Firebase App Hosting builds with `npm run build` and starts `server.js`.
 
 Outstanding is calculated only from due and overdue month statuses from July 2026.
 Legacy weekly dashboard rows and legacy outstanding fields are not used.
+
+
+## V9.0.1 registry fix
+
+The package lock now uses the public npm registry:
+`https://registry.npmjs.org/`
+
+Internal sandbox registry URLs replaced: 50.
