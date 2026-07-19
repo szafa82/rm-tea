@@ -1,0 +1,107 @@
+/* Poster Studio — A4 poster closely matching the approved design */
+.posterStudio{display:flex;flex-direction:column;gap:20px}
+.posterToolbar{display:flex;justify-content:space-between;align-items:center;gap:18px;background:#fff;border:1px solid #e5e7eb;border-radius:22px;padding:22px 26px;box-shadow:0 16px 42px #0f172a12}
+.posterToolbar h2{margin:4px 0;font-size:29px}
+.posterToolbar p{margin:0;color:#64748b;font-weight:700}
+.posterStage{display:flex;justify-content:center;overflow:auto;padding:24px;background:#dde5ee;border-radius:26px}
+
+.teaPoster{
+  --poster-red:#c90012;
+  --poster-dark:#111827;
+  position:relative;
+  width:794px;
+  min-width:794px;
+  height:1123px;
+  overflow:hidden;
+  box-sizing:border-box;
+  padding:28px 52px 88px;
+  background:radial-gradient(circle at 50% 34%,#fff 0,#fff 54%,#f8f8f8 100%);
+  color:var(--poster-dark);
+  box-shadow:0 24px 70px #0f172a35;
+  font-family:Arial,Helvetica,sans-serif;
+}
+
+.posterTopArtwork{position:absolute;inset:0 0 auto 0;height:190px;overflow:hidden;pointer-events:none}
+.topArc{position:absolute;border-radius:0 0 55% 55%}
+.topArcOne{left:-100px;top:-145px;width:520px;height:280px;background:linear-gradient(135deg,#88000a,#d50014)}
+.topArcTwo{right:-130px;top:-158px;width:590px;height:310px;background:linear-gradient(225deg,#8f0008,#d50014)}
+.topArcThree{left:85px;right:85px;top:-119px;height:210px;border:13px solid #fff;border-top:0;background:transparent;box-shadow:0 14px 0 #c5c7cb,0 25px 0 #fff,0 36px 0 var(--poster-red)}
+
+.posterLogoBlock{position:relative;z-index:2;display:flex;justify-content:center;height:132px}
+.engineeringLogo{position:relative;width:150px;height:118px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--poster-red)}
+.gearTeeth{position:absolute;top:0;width:94px;height:94px;border:10px solid var(--poster-red);border-radius:50%;box-shadow:0 0 0 5px #fff inset}
+.gearTeeth:before,.gearTeeth:after{content:"";position:absolute;inset:-20px;border:9px dashed var(--poster-red);border-radius:50%}
+.gearCore{position:relative;z-index:2;width:70px;height:70px;border-radius:50%;background:linear-gradient(#b5000e,#760008);display:grid;place-items:center;border:5px solid #fff;box-shadow:0 0 0 4px var(--poster-red)}
+.gearCore strong{font-size:31px;letter-spacing:2px;color:#ffc400;text-shadow:1px 1px #8a0000}
+.engineeringLogo>span{position:absolute;bottom:2px;background:#fff;padding:0 5px;font-size:15px;font-weight:900;letter-spacing:.04em}
+
+.posterTitleBlock{position:relative;z-index:2;text-align:center;margin-top:6px}
+.posterTitleBlock h1{margin:0;font-size:86px;line-height:1;font-weight:900;letter-spacing:-4px}
+.titleDivider{display:flex;justify-content:center;align-items:center;gap:12px;margin:13px auto 18px;width:520px;color:var(--poster-red)}
+.titleDivider span{height:1px;background:var(--poster-red);flex:1}
+.titleDivider b{font-size:31px;line-height:1;transform:rotate(45deg)}
+
+.drinksRow{display:flex;justify-content:center;align-items:center;gap:8px;white-space:nowrap;font-size:13px;font-weight:700}
+.drinksRow div{display:flex;align-items:center;gap:5px}
+.drinksRow i{font-style:normal;color:var(--poster-red);font-size:17px}
+.drinkLeaf,.coffeeBean{font-size:18px;line-height:1;display:inline-block}
+.blackLeaf{color:#111827;transform:rotate(-20deg)}
+.greenLeaf{color:#17a745}
+.brownBean{color:#7a2f18}
+.redBean{color:#d00}
+
+.posterInstruction{text-align:center;margin:25px 0 20px;font-size:16px}
+.joinStrip{height:54px;border:2px solid var(--poster-red);border-radius:15px;display:flex;justify-content:center;align-items:center;gap:14px}
+.joinStrip p{font-size:16px;margin:0}
+.joinStrip strong{color:var(--poster-red)}
+.joinIcon{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--poster-red);color:#fff}
+
+.memberFrame{position:relative;margin-top:8px;border:1.8px solid var(--poster-red);border-radius:16px;padding:17px 28px 128px;min-height:525px}
+.posterMemberColumns{display:grid;grid-template-columns:1fr 1fr;gap:0 42px}
+.posterMemberColumn:first-child{border-right:1.5px solid var(--poster-red);padding-right:32px}
+.posterMemberColumn:last-child{padding-left:4px}
+.posterMemberName{display:flex;align-items:center;gap:10px;height:25px;font-size:15.5px;font-weight:800}
+.posterMemberName svg{color:var(--poster-red);flex:none}
+
+.contactFrame{position:absolute;left:18px;right:18px;bottom:15px;height:100px;border:2px solid var(--poster-red);border-radius:16px;background:#fff}
+.contactRibbon{position:absolute;left:50%;top:-13px;transform:translateX(-50%);background:linear-gradient(#d30013,#9a000a);color:#fff;padding:7px 30px 6px;min-width:285px;text-align:center;font-size:13px;font-weight:900;clip-path:polygon(4% 0,96% 0,100% 50%,96% 100%,4% 100%,0 50%)}
+.contactGrid{display:grid;grid-template-columns:1fr 1px 1.25fr;align-items:center;height:100%;padding:10px 22px 0}
+.contactItem{display:flex;align-items:center;gap:13px}
+.contactItem>div:last-child{display:flex;flex-direction:column}
+.contactItem span{font-size:14px}
+.contactItem strong{font-size:23px;color:var(--poster-red);line-height:1.1}
+.emailContact strong{font-size:16px}
+.contactCircle{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(#df0014,#a5000c);color:#fff}
+.contactDivider{height:55px;background:var(--poster-red);opacity:.75}
+
+.posterBottom{position:absolute;left:0;right:0;bottom:0;height:105px;overflow:hidden;color:#fff}
+.bottomArc{position:absolute;left:-80px;right:-80px;border-radius:50% 50% 0 0}
+.bottomArcGrey{height:118px;bottom:-67px;background:#bfc1c4}
+.bottomArcRed{height:105px;bottom:-61px;background:var(--poster-red)}
+.bottomArcDark{height:88px;bottom:-51px;background:#101827}
+.bottomCup{position:absolute;left:50%;top:0;transform:translateX(-50%);width:62px;height:62px;border:5px solid #fff;border-radius:50%;background:linear-gradient(#d60013,#970008);display:grid;place-items:center;box-shadow:0 2px 8px #0004}
+.updatedLine{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:center;align-items:center;gap:9px;font-size:17px}
+.updatedLine strong{font-size:19px}
+
+@media(max-width:880px){
+  .posterToolbar{align-items:flex-start;flex-direction:column}
+}
+@media(max-width:720px){
+  .posterStage{justify-content:flex-start;padding:8px}
+  .teaPoster{transform:scale(.72);transform-origin:top left;margin-bottom:-314px}
+}
+@media print{
+  body *{visibility:hidden!important}
+  #tea-club-poster,#tea-club-poster *{visibility:visible!important}
+  #tea-club-poster{
+    position:absolute!important;
+    left:0!important;
+    top:0!important;
+    width:210mm!important;
+    min-width:210mm!important;
+    height:297mm!important;
+    box-shadow:none!important;
+    transform:none!important;
+  }
+  @page{size:A4 portrait;margin:0}
+}
