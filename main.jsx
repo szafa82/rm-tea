@@ -135,7 +135,13 @@ function normalizeTransaction(tx, index) {
 function App() {
   const [active, setActive] = useState('Members');
   const [query, setQuery] = useState('');
-  const [hideLeftMembers, setHideLeftMembers] = useState(false);
+  const [hideLeftMembers, setHideLeftMembers] = useState(() => {
+    try {
+      return window.localStorage.getItem('rmTea.hideLeftMembers') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [status, setStatus] = useState('Loading Firestore...');
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
@@ -176,6 +182,14 @@ function App() {
   }
 
   useEffect(() => { refreshData(); }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('rmTea.hideLeftMembers', String(hideLeftMembers));
+    } catch {
+      // Local storage can be unavailable in private/restricted browsing.
+    }
+  }, [hideLeftMembers]);
 
   function notify(message) {
     setToast(message);
@@ -463,6 +477,11 @@ const filteredMembers = members
 }
 
 function Dashboard({ stats, dashboardRows, months, messages }) {
+  const monthlyDashboardRows = dashboardRows.filter(row => {
+    const text = [row.label, row.item, row.note, row.value].join(' ').toLowerCase();
+    return !text.includes('week') && !text.includes('weekly');
+  });
+
   return <section className="grid">
     <Stat title="Active members" value={stats.activeMembers} />
     <Stat title="All members" value={stats.allMembers} />
@@ -470,7 +489,7 @@ function Dashboard({ stats, dashboardRows, months, messages }) {
     <Stat title="Outstanding" value={toMoney(stats.due)} tone="orange" />
     <Stat title="Income" value={toMoney(stats.income)} tone="green" />
     <Stat title="Expenses" value={toMoney(stats.spent)} tone="red" />
-    <div className="panel wide"><h2>Firestore dashboard snapshot</h2><table><thead><tr><th>Item</th><th>Value</th><th>Note</th></tr></thead><tbody>{dashboardRows.slice(0, 8).map((row, index) => <tr key={index}><td>{row.label || row.item || '-'}</td><td><b>{String(row.value ?? '')}</b></td><td>{row.note || ''}</td></tr>)}</tbody></table></div>
+    <div className="panel wide"><h2>Firestore dashboard snapshot</h2><table><thead><tr><th>Item</th><th>Value</th><th>Note</th></tr></thead><tbody>{monthlyDashboardRows.slice(0, 8).map((row, index) => <tr key={index}><td>{row.label || row.item || '-'}</td><td><b>{String(row.value ?? '')}</b></td><td>{row.note || ''}</td></tr>)}</tbody></table></div>
     <div className="panel"><h2>System</h2><p className="alert good">✓ Connected to teaClub/main</p><p className="alert good">✓ Monthly-only member statuses</p><p className="alert">Payments can now mark months as paid.</p><p><b>Months:</b> {months.join(', ') || '-'}</p><p><b>Messages:</b> {messages.length}</p></div>
   </section>;
 }
@@ -530,7 +549,6 @@ function memberOverallStatus(member) {
   if (member.resigned || text.includes('resign') || text.includes('left')) return 'left';
   if ((member.counts?.overdue || 0) > 0) return 'due';
   if ((member.counts?.due || 0) > 0) return 'warn';
-  if (text.includes('new')) return 'new';
   return 'active';
 }
 
