@@ -5,10 +5,6 @@ import {
 } from 'lucide-react';
 import '../poster.css';
 
-const CONTACT_NAME = 'Adam Szafarczyk';
-const CONTACT_PHONE = '07462 879010';
-const CONTACT_EMAIL = 'adam.szafarczyk@royalmail.com';
-
 function formatDate(date = new Date()) {
   return new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
@@ -17,7 +13,7 @@ function formatDate(date = new Date()) {
   }).format(date);
 }
 
-export default function PosterStudio({ members = [] }) {
+export default function PosterStudio({ members = [], settings = {} }) {
   const activeMembers = useMemo(
     () => members
       .filter(member => !member.resigned)
@@ -70,7 +66,7 @@ export default function PosterStudio({ members = [] }) {
           </header>
 
           <section className="posterTitleBlock">
-            <h1>TEA CLUB</h1>
+            <h1>{settings.clubName || 'TEA CLUB'}</h1>
             <div className="titleDivider">
               <span />
               <b>◆</b>
@@ -79,17 +75,12 @@ export default function PosterStudio({ members = [] }) {
           </section>
 
           <section className="drinksRow" aria-label="Available refreshments">
-            <div><Milk size={20} /> Milk available</div>
-            <i>•</i>
-            <div><Coffee size={20} /> Hot chocolate</div>
-            <i>•</i>
-            <div><span className="drinkLeaf blackLeaf">◒</span> Tea</div>
-            <i>•</i>
-            <div><span className="drinkLeaf greenLeaf">●</span> Decaf tea</div>
-            <i>•</i>
-            <div><span className="coffeeBean brownBean">●</span> Coffee</div>
-            <i>•</i>
-            <div><span className="coffeeBean redBean">●</span> Decaf coffee</div>
+            {(settings.drinks || ['Milk available', 'Hot chocolate', 'Tea', 'Decaf tea', 'Coffee', 'Decaf coffee']).map((drink, index) => (
+              <React.Fragment key={drink}>
+                {index > 0 && <i>•</i>}
+                <div>{index === 0 ? <Milk size={20}/> : <Coffee size={20}/>} {drink}</div>
+              </React.Fragment>
+            ))}
           </section>
 
           <p className="posterInstruction">
@@ -100,7 +91,7 @@ export default function PosterStudio({ members = [] }) {
             <div className="joinIcon"><UserRound size={28} /></div>
             <p>
               To join or ask a question, please speak to
-              <strong> {CONTACT_NAME}.</strong>
+              <strong> {settings.contactName || 'Adam Szafarczyk'}.</strong>
             </p>
           </section>
 
@@ -126,7 +117,7 @@ export default function PosterStudio({ members = [] }) {
                   <div className="contactCircle"><Phone size={30} /></div>
                   <div>
                     <span>Call or WhatsApp</span>
-                    <strong>{CONTACT_PHONE}</strong>
+                    <strong>{settings.phone || '07462 879010'}</strong>
                   </div>
                 </div>
 
@@ -136,7 +127,7 @@ export default function PosterStudio({ members = [] }) {
                   <div className="contactCircle"><Mail size={30} /></div>
                   <div>
                     <span>Email</span>
-                    <strong>{CONTACT_EMAIL}</strong>
+                    <strong>{settings.email || 'adam.szafarczyk@royalmail.com'}</strong>
                   </div>
                 </div>
               </div>
