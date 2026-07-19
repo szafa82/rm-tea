@@ -37,6 +37,9 @@ export default function PosterStudio({ members = [], settings = {} }) {
   const [nameScale, setNameScale] = useState(100);
   const [busy, setBusy] = useState('');
   const [showContact, setShowContact] = useState(true);
+  const [titleFont, setTitleFont] = useState('Montserrat');
+  const [memberFont, setMemberFont] = useState('Inter');
+  const [logoScale, setLogoScale] = useState(100);
 
   const activeMembers = useMemo(
     () => members
@@ -117,9 +120,23 @@ export default function PosterStudio({ members = [], settings = {} }) {
             <option value="auto">Auto</option><option value="2">2 columns</option><option value="3">3 columns</option>
           </select>
         </label>
+        <label><Sparkles size={16}/>Title font
+          <select value={titleFont} onChange={event => setTitleFont(event.target.value)}>
+            <option value="Montserrat">Montserrat</option><option value="Poppins">Poppins</option><option value="Inter">Inter</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option>
+          </select>
+        </label>
+        <label><Sparkles size={16}/>Member font
+          <select value={memberFont} onChange={event => setMemberFont(event.target.value)}>
+            <option value="Inter">Inter</option><option value="Montserrat">Montserrat</option><option value="Poppins">Poppins</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option>
+          </select>
+        </label>
         <label className="scaleControl"><Sparkles size={16}/>Name size
           <input type="range" min="82" max="112" value={nameScale} onChange={event => setNameScale(Number(event.target.value))}/>
           <b>{nameScale}%</b>
+        </label>
+        <label className="scaleControl"><Sparkles size={16}/>Logo size
+          <input type="range" min="78" max="118" value={logoScale} onChange={event => setLogoScale(Number(event.target.value))}/>
+          <b>{logoScale}%</b>
         </label>
         <label className="toggleControl"><input type="checkbox" checked={showContact} onChange={event => setShowContact(event.target.checked)}/>Contact panel</label>
       </div>
@@ -129,13 +146,14 @@ export default function PosterStudio({ members = [], settings = {} }) {
           className={`teaPoster poster-${template} columns-${columnCount}`}
           id="tea-club-poster"
           ref={posterRef}
-          style={{ '--name-scale': nameScale / 100 }}
+          style={{ '--name-scale': nameScale / 100, '--logo-scale': logoScale / 100, '--title-font': titleFont, '--member-font': memberFont }}
         >
           <div className="posterTopArtwork"><div className="topArc topArcOne"/><div className="topArc topArcTwo"/><div className="topArc topArcThree"/></div>
 
           <header className="posterLogoBlock">
-            <div className="engineeringLogo" aria-label="RM Engineering">
-              <div className="gearTeeth"/><div className="gearCore"><strong>RM</strong></div><span>ENGINEERING</span>
+            <div className="engineeringLogo cleanEngineeringLogo" aria-label="RM Engineering">
+              <div className="logoBadge"><strong>RM</strong></div>
+              <span>ENGINEERING</span>
             </div>
           </header>
 
